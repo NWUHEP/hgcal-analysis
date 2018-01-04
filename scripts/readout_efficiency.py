@@ -56,13 +56,29 @@ def test_best_choice(df, evtlist, params):
 
     return df_out
 
+def test_threshold(df, evtlist, params):
+    thresh = params[0]
+    df_out = pd.DataFrame()
+    tagged_tc = df.query('tc_simenergy > 0')
+    for layer in df.tc_layer.unique():
+        this_df = df[df.event.isin(evtlist)].query('tc_layer == {0}'.format(layer))
+        this_tag = tagged_tc[tagged_tc.event.isin(evtlist)].query('tc_layer == {0}'.format(layer))
+        tc_over_thresh = tagged_tc.tc_mipPt > thresh
+        this_tag['isReadout'] = tc_over_thresh
+        this_df = this_tag[['tc_layer', 'tc_wafer', 'tc_id', 'isReadout', 'tc_energy', 'tc_simenergy']]
+        df_out = df_out.append(this_df)
+
+    return df_out
+
+         
+
 
 if __name__ == '__main__':
     
     # load trigger and geometry data
     print('reading dataframes')
     tc_features = ['event', 'tc_id', 'tc_subdet', 'tc_zside', 'tc_layer', 'tc_wafer', 
-                   'tc_cell', 'tc_energy',  'tc_simenergy', 'tc_eta', 'tc_phi', 'tc_z']
+                   'tc_cell', 'tc_energy',  'tc_simenergy', 'tc_mipPt', 'tc_eta', 'tc_phi', 'tc_z']
 
     tc_pu_features = ['event', 'tc_id', 'tc_subdet', 'tc_zside', 'tc_layer', 'tc_wafer', 
                       'tc_cell', 'tc_energy', 'tc_eta', 'tc_phi', 'tc_z']
@@ -100,27 +116,27 @@ if __name__ == '__main__':
     df_geom.query('zside == 1 and subdet == 3', inplace=True)
 
     # algorithm settings
-    algo = 'best_choice'
+    algo = 'threshold'
     if algo == 'best_choice':
         nbx = 9     # not used (gets set to n_sig+n_bkg for now)
         nwaferbx = 4
         params = [nbx, nwaferbx]
     elif algo == 'threshold':
-        threshold = 0.
+        threshold = 2. # measured in mipPt
         params = [threshold]
     
     # bunch arrangement settings
     n_sig = 1
     n_bkg = 8
     
-    nruns = 5
+    nruns = 1000
     df_out = pd.DataFrame()
     for iRun in range(nruns):
         (evtlist, gen_energy) = set_bunches(df_tc_gamma, df_tc_pu, n_sig, n_bkg)
-        df_algo = test_best_choice(df_tc, evtlist, params)
+        df_algo = test_threshold(df_tc, evtlist, params)
         df_algo['run'] = iRun
         df_algo['gen_energy'] = gen_energy
         df_out = df_out.append(df_algo)
         print('{0} % complete'.format(100.*iRun/nruns))
 
-    df_out.to_csv('data/eff/readout_eff.csv', index=False)
+    df_out.to_csv('data/eff/readout_eff_thresh_2mpt.csv', index=False)
