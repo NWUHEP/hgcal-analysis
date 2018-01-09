@@ -25,9 +25,11 @@ def augment_ntuple(df, geom):
     return df
 
 def set_bunches(df_sig, df_bkg, n_sig, n_bkg):
-    sig_tc = df_sig.sample(n_sig)
-    bkg_tc = df_bkg.sample(n_bkg)
-    df = bkg_tc.append(sig_tc).sample(frac=1)
+    sig_evts = np.random.choice(df_sig.event.unique(), n_sig, replace=False)
+    bkg_evts = np.random.choice(df_bkg.event.unique(), n_bkg, replace=False)
+    sig_tc = df_sig[df_sig.event.isin(sig_evts)]
+    bkg_tc = df_bkg[df_bkg.event.isin(bkg_evts)]
+    df = bkg_tc.append(sig_tc)
     evtlist = df.event.unique()
     gen_energy = sig_tc.gen_energy.values[0]
 
@@ -65,7 +67,7 @@ def test_threshold(df, evtlist, params):
         this_tag = tagged_tc[tagged_tc.event.isin(evtlist)].query('tc_layer == {0}'.format(layer))
         tc_over_thresh = tagged_tc.tc_mipPt > thresh
         this_tag['isReadout'] = tc_over_thresh
-        this_df = this_tag[['tc_layer', 'tc_wafer', 'tc_id', 'isReadout', 'tc_energy', 'tc_simenergy']]
+        this_df = this_tag[['event', 'tc_layer', 'tc_wafer', 'tc_id', 'isReadout', 'tc_energy', 'tc_simenergy']]
         df_out = df_out.append(this_df)
 
     return df_out
@@ -92,7 +94,7 @@ if __name__ == '__main__':
                             'hgcalTriggerNtuplizer/HGCalTriggerNtuple', 
                              columns=tc_features, flatten=tc_features)
 
-    df_tc_pu = read_root('data/trig/ntuple_doublenu140_newmap.root', 
+    df_tc_pu = read_root('data/trig/ntuple_doublenu140_newmap_nothresh.root', 
                          'hgcalTriggerNtuplizer/HGCalTriggerNtuple', 
                           columns=tc_pu_features, flatten=tc_pu_features)
 
@@ -100,7 +102,8 @@ if __name__ == '__main__':
                        'hgcalTriggerNtuplizer/HGCalTriggerNtuple',
                         columns=gen_features, flatten=gen_features)
 
-    df_geom = read_root('data/geom/test_triggergeom_newmap.root', 'hgcaltriggergeomtester/TreeModules', 
+    df_geom = read_root('data/geom/test_triggergeom_newmap.root', 
+                        'hgcaltriggergeomtester/TreeModules', 
                          columns=geom_features, flatten=geom_features)
     print('reading dataframes complete')
 
@@ -113,10 +116,13 @@ if __name__ == '__main__':
     df_tc_gamma.query('tc_zside == 1 and tc_subdet == 3', inplace=True)
     df_tc_pu.query('tc_zside == 1 and tc_subdet == 3', inplace=True)
     df_tc.query('tc_zside == 1 and tc_subdet == 3', inplace=True)
+    df_tc_gamma.fillna(0.0, inplace=True)
+    df_tc_pu.fillna(0.0, inplace=True)
+    df_tc.fillna(0.0, inplace=True)
     df_geom.query('zside == 1 and subdet == 3', inplace=True)
 
     # algorithm settings
-    algo = 'threshold'
+    algo = 'best_choice'
     if algo == 'best_choice':
         nbx = 9     # not used (gets set to n_sig+n_bkg for now)
         nwaferbx = 4
@@ -133,10 +139,14 @@ if __name__ == '__main__':
     df_out = pd.DataFrame()
     for iRun in range(nruns):
         (evtlist, gen_energy) = set_bunches(df_tc_gamma, df_tc_pu, n_sig, n_bkg)
-        df_algo = test_threshold(df_tc, evtlist, params)
+        df_algo = pd.DataFrame()
+        if algo == 'best_choice':
+            df_algo = test_best_choice(df_tc, evtlist, params)
+        elif algo == 'threshold':
+            df_algo = test_threshold(df_tc, evtlist, params)
         df_algo['run'] = iRun
         df_algo['gen_energy'] = gen_energy
         df_out = df_out.append(df_algo)
         print('{0} % complete'.format(100.*iRun/nruns))
 
-    df_out.to_csv('data/eff/readout_eff_thresh_2mpt.csv', index=False)
+    df_out.to_csv('data/eff/readout_eff_bestchoice_9_4.csv', index=False)
