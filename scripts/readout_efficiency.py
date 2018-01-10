@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 from root_pandas import read_root
 import matplotlib.pyplot as plt
-import multiprocessing as mp
 import time
 
 def augment_ntuple(df, geom):
@@ -74,21 +73,6 @@ def test_threshold(df, evtlist, params):
 
     return df_out
     
-def run_tests(N, df_sig, df_bkg, df, n_sig, n_bkg, algo, params):
-    df_out = pd.DataFrame()
-    for i in range(N):
-        (evtlist, gen_energy) = set_bunches(df_sig, df_bkg, n_sig, n_bkg)
-        df_algo = pd.DataFrame()
-        if algo == 'best_choice':
-            df_algo = test_best_choice(df, evtlist, params)
-        elif algo == 'threshold':
-            df_algo = test_threshold(df, evtlist, params)
-        df_algo['run'] = i
-        df_algo['gen_energy'] = gen_energy
-        df_out = df_out.append(df_algo)
-    return df_out
-
-
 if __name__ == '__main__':
     
     # load trigger and geometry data
