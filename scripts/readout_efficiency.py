@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from root_pandas import read_root
 import matplotlib.pyplot as plt
+import multiprocessing as mp
 import time
 
 def augment_ntuple(df, geom):
@@ -39,10 +40,11 @@ def test_best_choice(df, evtlist, params):
     #nbx = params[0]            # take to be same as len(evtlist) for now
     nwaferbx = params[1] 
     df_out = pd.DataFrame()
+    df = df[df.event.isin(evtlist)]
     tagged_tc = df.query('tc_simenergy > 0')
     for layer in df.tc_layer.unique():
-        this_df = df[df.event.isin(evtlist)].query('tc_layer == {0}'.format(layer))
-        this_tag = tagged_tc[tagged_tc.event.isin(evtlist)].query('tc_layer == {0}'.format(layer))
+        this_df = df.query('tc_layer == {0}'.format(layer))
+        this_tag = tagged_tc.query('tc_layer == {0}'.format(layer))
         tagged_mboards = this_tag.tc_mboard.unique()
         mboard_gby = this_df.groupby('tc_mboard')
         for mboard in tagged_mboards:
@@ -52,8 +54,8 @@ def test_best_choice(df, evtlist, params):
             isReadout = np.zeros(df_sum.shape[0], dtype=bool)
             isReadout[:nwaferbx] = True
             df_sum['isReadout'] = isReadout
-            this_df = pd.DataFrame({'layer': [layer]*df_sum.shape[0], 'wafer': df_sum.tc_wafer, 'isReadout': df_sum.isReadout, 
-                                    'tc_energy': df_sum.tc_energy, 'tc_simenergy': df_sum.tc_simenergy})
+            this_df = pd.DataFrame({'layer': [layer]*df_sum.shape[0], 'wafer': df_sum.tc_wafer, 'wafer_isReadout': df_sum.isReadout, 
+                                    'wafer_energy': df_sum.tc_energy, 'wafer_simenergy': df_sum.tc_simenergy})
             df_out = df_out.append(this_df)
 
     return df_out
@@ -62,17 +64,29 @@ def test_threshold(df, evtlist, params):
     thresh = params[0]
     df_out = pd.DataFrame()
     tagged_tc = df.query('tc_simenergy > 0')
+    tagged_tc = tagged_tc[tagged_tc.event.isin(evtlist)]
     for layer in df.tc_layer.unique():
-        this_df = df[df.event.isin(evtlist)].query('tc_layer == {0}'.format(layer))
-        this_tag = tagged_tc[tagged_tc.event.isin(evtlist)].query('tc_layer == {0}'.format(layer))
+        this_tag = tagged_tc.query('tc_layer == {0}'.format(layer))
         tc_over_thresh = tagged_tc.tc_mipPt > thresh
         this_tag['isReadout'] = tc_over_thresh
-        this_df = this_tag[['event', 'tc_layer', 'tc_wafer', 'tc_id', 'isReadout', 'tc_energy', 'tc_simenergy']]
+        this_df = this_tag[['event', 'tc_layer', 'tc_wafer', 'tc_id', 'tc_isReadout', 'tc_energy', 'tc_simenergy']]
         df_out = df_out.append(this_df)
 
     return df_out
-
-         
+    
+def run_tests(N, df_sig, df_bkg, df, n_sig, n_bkg, algo, params):
+    df_out = pd.DataFrame()
+    for i in range(N):
+        (evtlist, gen_energy) = set_bunches(df_sig, df_bkg, n_sig, n_bkg)
+        df_algo = pd.DataFrame()
+        if algo == 'best_choice':
+            df_algo = test_best_choice(df, evtlist, params)
+        elif algo == 'threshold':
+            df_algo = test_threshold(df, evtlist, params)
+        df_algo['run'] = i
+        df_algo['gen_energy'] = gen_energy
+        df_out = df_out.append(df_algo)
+    return df_out
 
 
 if __name__ == '__main__':
@@ -135,7 +149,8 @@ if __name__ == '__main__':
     n_sig = 1
     n_bkg = 8
     
-    nruns = 1000
+    nruns = 1
+
     df_out = pd.DataFrame()
     for iRun in range(nruns):
         (evtlist, gen_energy) = set_bunches(df_tc_gamma, df_tc_pu, n_sig, n_bkg)
@@ -147,6 +162,6 @@ if __name__ == '__main__':
         df_algo['run'] = iRun
         df_algo['gen_energy'] = gen_energy
         df_out = df_out.append(df_algo)
-        print('{0} % complete'.format(100.*iRun/nruns))
+        print('{0} % complete'.format(100.*iRun/nruns))    
 
-    df_out.to_csv('data/eff/readout_eff_bestchoice_9_4.csv', index=False)
+    df_out.to_csv('data/eff/readout_eff_testrun.csv', index=False)
