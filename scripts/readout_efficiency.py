@@ -45,17 +45,23 @@ def test_best_choice(df, evtlist, params):
         this_df = df.query('tc_layer == {0}'.format(layer))
         this_tag = tagged_tc.query('tc_layer == {0}'.format(layer))
         tagged_mboards = this_tag.tc_mboard.unique()
-        mboard_gby = this_df.groupby('tc_mboard')
-        for mboard in tagged_mboards:
-            this_group = mboard_gby.get_group(mboard)
-            groupby = this_group.groupby(['event', 'tc_wafer'])
-            df_sum = groupby.sum().sort_values(by=['tc_energy'], ascending=False).reset_index()
-            isReadout = np.zeros(df_sum.shape[0], dtype=bool)
-            isReadout[:nwaferbx] = True
-            df_sum['isReadout'] = isReadout
-            this_df = pd.DataFrame({'layer': [layer]*df_sum.shape[0], 'wafer': df_sum.tc_wafer, 'wafer_isReadout': df_sum.isReadout, 
-                                    'wafer_energy': df_sum.tc_energy, 'wafer_simenergy': df_sum.tc_simenergy})
-            df_out = df_out.append(this_df)
+        this_df = this_df[this_df.tc_mboard.isin(tagged_mboards)]
+        map_tuples = list(zip(this_df.event, this_df.tc_mboard, this_df.tc_wafer))
+        this_df['event_mboard_wafer'] = map_tuples
+        groupby = this_df.groupby('event_mboard_wafer')
+        wafer_sum_map = groupby.apply(lambda d: d.tc_energy.sum()).to_dict()
+        wafer_tc_energy = this_df.event_mboard_wafer.map(wafer_sum_map)
+        this_df.loc[:, 'wafer_tc_energy'] = wafer_tc_energy            
+        sorted_wafer_sums = np.sort(this_df.wafer_tc_energy.unique())[::-1]
+        if len(sorted_wafer_sums) >= nwaferbx:
+            isReadout = this_df.wafer_tc_energy >= sorted_wafer_sums[nwaferbx-1]
+        else:
+            isReadout = np.ones(this_df.shape[0], dtype=bool)
+        this_df.loc[:, 'tc_isReadout'] = isReadout
+        this_df = this_df[['event', 'tc_layer', 'tc_wafer', 'tc_id', 'tc_isReadout', 
+                              'tc_energy', 'tc_simenergy', 'wafer_tc_energy']]
+        
+        df_out = df_out.append(this_df)
 
     return df_out
 
@@ -148,4 +154,4 @@ if __name__ == '__main__':
         df_out = df_out.append(df_algo)
         print('{0} % complete'.format(100.*iRun/nruns))    
 
-    df_out.to_csv('data/eff/readout_eff_testrun.csv', index=False)
+    df_out.to_csv('data/eff/readout_eff_test.csv', index=False)
