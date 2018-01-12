@@ -58,8 +58,8 @@ def test_best_choice(df, evtlist, params):
         else:
             isReadout = np.ones(this_df.shape[0], dtype=bool)
         this_df.loc[:, 'tc_isReadout'] = isReadout
-        this_df = this_df[['event', 'tc_layer', 'tc_wafer', 'tc_id', 'tc_isReadout', 
-                              'tc_energy', 'tc_simenergy', 'wafer_tc_energy']]
+        this_df = this_df[['event', 'tc_layer', 'tc_wafer', 'tc_id', 'tc_eta', 'tc_phi',
+                           'tc_isReadout', 'tc_energy', 'tc_simenergy', 'wafer_tc_energy']]
         
         df_out = df_out.append(this_df)
 
@@ -74,7 +74,8 @@ def test_threshold(df, evtlist, params):
         this_tag = tagged_tc.query('tc_layer == {0}'.format(layer))
         tc_over_thresh = tagged_tc.tc_mipPt > thresh
         this_tag['isReadout'] = tc_over_thresh
-        this_df = this_tag[['event', 'tc_layer', 'tc_wafer', 'tc_id', 'tc_isReadout', 'tc_energy', 'tc_simenergy']]
+        this_df = this_tag[['event', 'tc_layer', 'tc_wafer', 'tc_id', 'tc_eta', 'tc_phi', 
+                            'tc_isReadout', 'tc_energy', 'tc_simenergy']]
         df_out = df_out.append(this_df)
 
     return df_out
