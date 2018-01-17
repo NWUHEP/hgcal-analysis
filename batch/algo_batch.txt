@@ -1,0 +1,11 @@
+Universe = vanilla
+Executable = run_python.sh
+arguments = $(Process)
+should_transfer_files = YES
+transfer_input_files = /uscms/home/jbueghly/nobackup/hgcal-analysis/scripts/test_algorithm.py, /uscms/home/jbueghly/nobackup/hgcal-analysis/batch/python.tar.gz
+Log = log/readout_effic_$(Process).log
+Output = out/readout_effic_$(Process).out
+Error = err/readout_effic_$(Process).error
+
+initialdir = batch_output
+Queue 100
