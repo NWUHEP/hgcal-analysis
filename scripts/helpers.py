@@ -57,40 +57,6 @@ def propagate_to_face(theta, phi, pt, z, mass):
 #    df = df[features]
 #    return df
 
-def root_to_dataframe(input_file):
-    '''
-    This is a temporary version until I figure out what I wasnt to do with root_pandas
-    '''
-
-    import ROOT as r
-    rfile = r.TFile(input_file)
-    tree = rfile.Get('hgcalTriggerNtuplizer/HGCalTriggerNtuple')
-
-    n_entries = tree.GetEntriesFast()
-    df_list = []
-    for i in tqdm(range(n_entries)):
-        tree.GetEntry(i)
-        tc_x = np.array(tree.tc_x)
-        tc_y = np.array(tree.tc_y)
-        tc_zside = np.array(tree.tc_zside)
-        tc_layer = np.array(tree.tc_layer, dtype=int)
-        tc_subdet = np.array(tree.tc_subdet, dtype=int)
-        tc_panel_n = np.array(tree.tc_panel_number, dtype=int)
-        tc_panel_s = np.array(tree.tc_panel_sector, dtype=int)
-        tc_energy = np.array(tree.tc_energy)
-        tc_simenergy = np.array(tree.tc_simenergy)
-        ediff = tc_energy - tc_simenergy
-
-        df_temp = pd.DataFrame(dict(ievt = np.array(tree.tc_n*[int(i),], dtype=int),
-                                    x = tc_x, y = tc_y, 
-                                    zside = tc_zside, layer = tc_layer, subdet = tc_subdet,
-                                    panel = tc_panel_n, sector = tc_panel_s,
-                                    sim_e = tc_simenergy, reco_e = tc_energy, delta_e = ediff))
-        df_list.append(df_temp) 
-
-    rfile.Close()
-    df = pd.concat(df_list)
-    return df
 
 def alpha_shape(points, alpha):
     """
