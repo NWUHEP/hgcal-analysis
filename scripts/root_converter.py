@@ -8,8 +8,7 @@ import ROOT as r
 
 def unpack_tree(tree, evt, is_pileup=False):
     tree.GetEntry(evt)
-    df_tmp = dict(
-                  ievt    = np.array(tree.tc_n*[int(evt),], dtype=int),
+    df_tmp = dict(ievt    = np.array(tree.tc_n*[int(evt), ], dtype=int),
                   x       = np.array(tree.tc_x),
                   y       = np.array(tree.tc_y),
                   zside   = np.array(tree.tc_zside),
@@ -30,20 +29,20 @@ if __name__ == '__main__':
 
     # parse arguments #
     parser = argparse.ArgumentParser(description='Convert hgcal root ntuples to dataframes')
-    parser.add_argument('signal_input', 
-                        help='root file containing signal process', 
+    parser.add_argument('signal_input',
+                        help='root file containing signal process',
                         type=str
                         )
-    parser.add_argument('pileup_input', 
-                        help='root file containing pure pileup samples', 
+    parser.add_argument('pileup_input',
+                        help='root file containing pure pileup samples',
                         type=str
                         )
-    parser.add_argument('-n', '--nepochs', 
-                        help='number of epochs', 
+    parser.add_argument('-n', '--nepochs',
+                        help='number of epochs',
                         type=int
                         )
-    parser.add_argument('-b', '--bunch-pattern', 
-                        help='specifies bunch pattern', 
+    parser.add_argument('-b', '--bunch-pattern',
+                        help='specifies bunch pattern',
                         type=str
                         )
     args = parser.parse_args()
@@ -64,28 +63,36 @@ if __name__ == '__main__':
     n_pileup    = pileup_tree.GetEntriesFast()
     pileup_evts = np.arange(n_pileup)
 
-    if type(args.nepochs) == type(None):
+    if isinstance(args.nepochs, type(None)):
         n_epochs = 10
     else:
         n_epochs = args.nepochs
 
+    bx = np.arange(8)
+
     df_list = []
     mi_labels = ['zside', 'layer', 'sector', 'panel', 'cell']
     for i in trange(n_epochs):
+        np.random.shuffle(bx)
+        isig  = np.random.choice(signal_evts, 1)
+        ibg   = np.random.choice(pileup_evts, 7)
 
         # get signal and pileup data and concatenate into a dataframe
-        signal_list = [unpack_tree(signal_tree, n) for n in np.random.choice(signal_evts, 1)]
-        pileup_list = [unpack_tree(pileup_tree, n, is_pileup=True) for n in np.random.choice(pileup_evts, 1)]
+        signal_list = [unpack_tree(signal_tree, bx[j]) for j, n in enumerate(isig)]
+        pileup_list = [unpack_tree(pileup_tree, bx[j+1], is_pileup=True) for j, n in enumerate(ibg)]
         df = pd.concat(signal_list + pileup_list)
-        
-        if df.sim_e.sum() == 0.: continue
 
-        # only save data from panels that have simhits
+        # if there are no simhits in hgcal, we don't care about this event
+        if df.sim_e.sum() == 0.:
+            continue
+
+        # only save data from panels that have simhits (not great...)
         df_skim = df.query('sim_e > 0.')[mi_labels]
         df_skim = df_skim.drop_duplicates().reset_index(drop=True)
-        panel_indices = [tuple(r) for r  in df_skim.values[:,:-1]]
-        df = df.set_index(mi_labels)
-        #df = df.loc[panel_indices]
+        g = df.groupby(['zside', 'layer', 'sector', 'panel'])
+        df_tmp = [g.get_group(tuple(r)) for r  in df_skim.values[:, :-1]]
+        df = pd.concat(df_tmp)
+
         df_list.append(df)
 
     output_file = open(f'data/mc_mixtures/{output_filename}_{n_epochs}.pkl', 'wb')

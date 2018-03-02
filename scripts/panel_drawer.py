@@ -56,7 +56,7 @@ if __name__ == '__main__':
 
         patch_dict[sector][panel] = ashape
 
-    outfile = open(f'data/panel_patches_zplus_{layer}.pkl', 'wb')
+    outfile = open(f'data/panels/patches_zplus_{layer}.pkl', 'wb')
     pickle.dump(patch_dict, outfile)
 
 
