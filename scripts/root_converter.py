@@ -1,13 +1,19 @@
 import argparse
 import pickle
+from collections import namedtuple
 import pandas as pd
 import numpy as np
 
-from tqdm import tqdm, trange
 import ROOT as r
 
-def unpack_tree(tree, evt, is_pileup=False):
+# container for gen particle data
+from tqdm import trange
+particle = namedtuple('particle', ['e', 'pt', 'eta', 'phi', 'ex', 'ey'])
+
+def unpack_tree(tree, evt, ievt=1, is_pileup=False):
     tree.GetEntry(evt)
+
+    # make trigger cell dataframe
     df_tmp = dict(ievt    = np.array(tree.tc_n*[int(evt), ], dtype=int),
                   x       = np.array(tree.tc_x),
                   y       = np.array(tree.tc_y),
@@ -20,9 +26,22 @@ def unpack_tree(tree, evt, is_pileup=False):
                   reco_e  = np.array(tree.tc_energy),
                   sim_e   = np.array(tree.tc_simenergy) if not is_pileup else np.zeros(tree.tc_n),
                   )
-    #df_tmp['delta_e'] = df_tmp['sim_e'] - df_tmp['reco_e'],
     df_tmp = pd.DataFrame(df_tmp)
     return df_tmp
+
+def get_genpart(tree, evt):
+    tree.GetEntry(evt)
+
+    # save gen particle data
+    particles = particle(e   = np.array(tree.genpart_energy),
+                         eta = np.array(tree.genpart_eta),
+                         phi = np.array(tree.genpart_phi),
+                         ex  = np.array(tree.genpart_exx),
+                         pt  = np.array(tree.genpart_pt),
+                         ey  = np.array(tree.genpart_exy)
+                        )
+
+    return particles
 
 
 if __name__ == '__main__':
@@ -69,17 +88,21 @@ if __name__ == '__main__':
         n_epochs = args.nepochs
 
     bx = np.arange(8)
-
-    df_list = []
+    df_list  = []
+    gen_list = []
     mi_labels = ['zside', 'layer', 'sector', 'panel', 'cell']
     for i in trange(n_epochs):
         np.random.shuffle(bx)
         isig  = np.random.choice(signal_evts, 1)
         ibg   = np.random.choice(pileup_evts, 7)
 
+        # get gen particle collection
+        gen_particles = [get_genpart(signal_tree, n) for n in isig]
+        gen_list.append(gen_particles)
+
         # get signal and pileup data and concatenate into a dataframe
-        signal_list = [unpack_tree(signal_tree, bx[j]) for j, n in enumerate(isig)]
-        pileup_list = [unpack_tree(pileup_tree, bx[j+1], is_pileup=True) for j, n in enumerate(ibg)]
+        signal_list = [unpack_tree(signal_tree, n, ievt=bx[j]) for j, n in enumerate(isig)]
+        pileup_list = [unpack_tree(pileup_tree, n, ievt=bx[j+1], is_pileup=True) for j, n in enumerate(ibg)]
         df = pd.concat(signal_list + pileup_list)
 
         # if there are no simhits in hgcal, we don't care about this event
@@ -87,19 +110,18 @@ if __name__ == '__main__':
             continue
 
         # only save data from panels that have simhits (not great...)
-        df_skim = df.query('sim_e > 0.')[mi_labels]
-        df_skim = df_skim.drop_duplicates().reset_index(drop=True)
-        g = df.groupby(['zside', 'layer', 'sector', 'panel'])
-        df_tmp = [g.get_group(tuple(r)) for r  in df_skim.values[:, :-1]]
-        df = pd.concat(df_tmp)
+        #df_skim = df.query('sim_e > 0.')[mi_labels]
+        #df_skim = df_skim.drop_duplicates().reset_index(drop=True)
+        #gr_tmp  = df.groupby(['zside', 'layer', 'sector', 'panel'])
+        #df_tmp  = [gr_tmp.get_group(tuple(r)) for r in df_skim.values[:, :-1]]
+        #df      = pd.concat(df_tmp)
 
         df_list.append(df)
 
     output_file = open(f'data/mc_mixtures/{output_filename}_{n_epochs}.pkl', 'wb')
+    pickle.dump(gen_list, output_file)
     pickle.dump(df_list, output_file)
 
     signal_file.Close()
     pileup_file.Close()
     output_file.close()
-
-
