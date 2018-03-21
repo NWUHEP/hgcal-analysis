@@ -1,14 +1,20 @@
-
+import os
 import argparse
 import pickle
 from functools import partial
+from multiprocessing import Process, Pool
 import pandas as pd
 import numpy as np
+
 import ROOT as r
-
-
-# container for gen particle data
 from tqdm import trange
+
+def get_current_time():
+    import datetime
+    now = datetime.datetime.now()
+    currentTime = '{0:02d}{1:02d}{2:02d}_{3:02d}{4:02d}{5:02d}'.format(now.year, now.month, now.day, now.hour, now.minute, now.second)
+    return currentTime
+
 
 def unpack_tree(tree, is_pileup=False):
 
@@ -45,51 +51,70 @@ def get_genpart(tree):
     #particles = particles[:2]
     return particles
 
-def threshold_algos(df, sort_by, name, ascending=False, nbx=8):
-    df = df.sort_values(sort_by, ascending=ascending)
-    df.loc[:,name] = True
-    if df.shape[0] > nbx*10:
-        df.loc[nbx*10:,name] = False
 
-    return df
+def mix_and_analyze(run_data):
 
-def algos_8bx(df):
+    file_count = run_data['file_count']
+    n_epochs   = run_data['n_epochs']
+    output_dir = run_data['output_dir']
 
-    # 8bx no sort
-    df = df.reset_index(drop=True) # causes problems otherwise
-    threshold_algos(df, 
-                    sort_by=['ievt', 'cell'], 
-                    name='threshold_8bx_nosort',
-                    ascending=True, 
-                    nbx=8
-                    )
-    # 8bx energy sort
-    threshold_algos(df, 
-                    sort_by='reco_e', 
-                    name='threshold_8bx_esort',
-                    ascending=False, 
-                    nbx=8
-                    )
-    return df
+    # some useful data
+    pileup_file = r.TFile(run_data['pileup_filename'])
+    pileup_tree = pileup_file.Get('hgcalTriggerNtuplizer/HGCalTriggerNtuple')
+    n_pileup    = pileup_tree.GetEntriesFast()
+    pileup_evts = list(range(n_pileup - 7)) # leave off the last seven events for sampling purposes
 
-def algos_1bx(df):
+    signal_file = r.TFile(run_data['signal_filename'])
+    signal_tree = signal_file.Get('HGCalTriggerNtuple')
+    n_signal    = signal_tree.GetEntriesFast()
+    signal_evts = list(range(n_signal))
 
-    # 8bx no sort
-    df = df.reset_index(drop=True) # causes problems otherwise
-    threshold_algos(df, 
-                    sort_by=['ievt', 'cell'], 
-                    name='threshold_1bx_nosort',
-                    ascending=True, 
-                    nbx=1
-                    )
-    # 8bx energy sort
-    threshold_algos(df, 
-                    sort_by='reco_e', 
-                    name='threshold_1bx_esort',
-                    ascending=False, 
-                    nbx=1
-                    )
-    return df
+    bx          = list(range(8))
+    mi_labels   = ['zside', 'layer', 'sector', 'panel']
+
+    # make df_lists and test algorithms
+    data_list = []
+    gen_list = []
+    for i in trange(n_epochs):
+        np.random.shuffle(bx)
+        isig = np.random.choice(signal_evts)
+        ibg  = np.random.choice(pileup_evts)
+        
+        # get signal data
+        signal_tree.GetEntry(isig)
+        df_sig = unpack_tree(signal_tree)
+        df_sig['ievt'] = bx[0]
+
+        # get pileup data
+        bg_list = []
+        for cnt, j in enumerate(range(7)):
+            pileup_tree.GetEntry(ibg+j)
+            df_bg = unpack_tree(pileup_tree, is_pileup=True)
+            df_bg['ievt'] = bx[cnt + 1]
+            bg_list.append(df_bg)
+
+        df = pd.concat(bg_list + [df_sig])
+
+        # only save data from panels that have simhits 
+        df = df.groupby(mi_labels).filter(lambda x: x.sim_e.sum() > 0)
+
+        # get gen objects
+        gen_df = get_genpart(signal_tree)
+
+        # save dataframes for making plots
+        df = df.reset_index(drop=True) # don't save heirarchical indices
+        data_list.append(df)
+        gen_list.append(gen_df)
+
+    signal_file.Close()
+    pileup_file.Close()
+
+    output_file = open(f'{output_dir}/output_{n_epochs}_{file_count}.pkl', 'wb')
+    pickle.dump(gen_list, output_file)
+    pickle.dump(data_list, output_file)
+    output_file.close()
+
+    return True 
 
 if __name__ == '__main__':
 
@@ -105,6 +130,12 @@ if __name__ == '__main__':
                         )
     parser.add_argument('-n', '--nepochs',
                         help='number of epochs',
+                        default=10,
+                        type=int
+                        )
+    parser.add_argument('-p', '--processes',
+                        help='number of concurrent processes to run',
+                        default=8,
                         type=int
                         )
     parser.add_argument('-b', '--bunch-pattern',
@@ -114,90 +145,28 @@ if __name__ == '__main__':
     args = parser.parse_args()
     ###############################
 
-    # Get input files
+    # unpack arguments
+    n_process       = args.processes
+    n_epochs        = args.nepochs
     signal_filename = args.signal_input
     pileup_filename = args.pileup_input
-    output_filename = signal_filename.split('/')[-1].split('.')[0]
+    input_name      = signal_filename.split('/')[-1].split('.')[0]
 
-    if isinstance(args.nepochs, type(None)):
-        n_epochs = 10
-    else:
-        n_epochs = args.nepochs
+    # multiprocess the data mixing and algorithm testing
+    output_dir = f'data/mc_mixtures/{input_name}_{get_current_time()}'
+    if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
 
-    pileup_file = r.TFile(pileup_filename)
-    pileup_tree = pileup_file.Get('hgcalTriggerNtuplizer/HGCalTriggerNtuple')
-    n_pileup = pileup_tree.GetEntriesFast()
-    pileup_dfs = []
-    for i in trange(7*n_epochs, desc='Getting pileup events'):
-        pileup_tree.GetEntry(i%n_pileup)
+    run_data    = [dict(file_count  = i,
+                        n_epochs    = n_epochs,
+                        signal_filename = signal_filename,
+                        pileup_filename = pileup_filename,
+                        output_dir  = output_dir
+                        ) for i in range(n_process)]
+    pool        = Pool(processes = n_process)
+    pfunc       = partial(mix_and_analyze)
+    pool_result = pool.map(pfunc, run_data)
 
-        # make trigger cell dataframe
-        df_tmp = unpack_tree(pileup_tree, is_pileup=True)
-        pileup_dfs.append(df_tmp)
-
-    signal_file = r.TFile(signal_filename)
-    signal_tree = signal_file.Get('hgcalTriggerNtuplizer/HGCalTriggerNtuple')
-    n_signal = signal_tree.GetEntriesFast()
-    signal_dfs = []
-    gen_list = []
-    for i in trange(2*n_epochs, desc='Getting signal events'):
-        signal_tree.GetEntry(i%n_signal)
-
-        # make trigger cell dataframe
-        df_tmp = unpack_tree(signal_tree)
-        if df_tmp.sim_e.sum() == 0:
-            continue
-
-        ## get gen particle collection
-        gen_particles = get_genpart(signal_tree)
-        if 1.7 < abs(gen_particles.loc[0].eta) < 2.7:
-            continue
-
-        signal_dfs.append(df_tmp)
-        gen_list.append(gen_particles)
-
-    # some useful data
-    pileup_evts = np.arange(len(signal_dfs))
-    signal_evts = np.arange(len(signal_dfs))
-    bx          = list(range(8))
-    mi_labels   = ['zside', 'layer', 'sector', 'panel']
-
-    # make df_lists and test algorithms
-    df_list    = []
-    for i in trange(n_epochs):
-        np.random.shuffle(bx)
-        isig = list(np.random.choice(signal_evts, 1))
-        ibg  = list(np.random.choice(pileup_evts, 7))
-        
-        df_sig = signal_dfs[isig[0]]
-        df_sig['ievt'] = bx[0]
-
-        bg_list = []
-        for cnt, j in enumerate(ibg):
-            df_bg = pileup_dfs[j]
-            df_bg['ievt'] = bx[cnt + 1]
-            bg_list.append(df_bg)
-
-        df = pd.concat(bg_list + [df_sig])
-
-        # only save data from panels that have simhits 
-        df = df.groupby(mi_labels).filter(lambda x: x.sim_e.sum() > 0)
-
-        # carry out the readout algorithms here
-        df = df.groupby(mi_labels, sort=False).apply(algos_8bx)
-        df = df.groupby(mi_labels+['ievt'], sort=False).apply(algos_1bx)
-
-        # save dataframes for making plots
-        df_list.append(df)
-
-    # just for debugging
-    #df = df_list[-1]
-
-    file_count = 0
-    output_file = open(f'data/mc_mixtures/{output_filename}_{n_epochs}_{file_count}.pkl', 'wb')
-    pickle.dump(gen_list, output_file)
-    pickle.dump(df_list, output_file)
-    output_file.close()
-
-    signal_file.Close()
-    pileup_file.Close()
+    pool.close()
+    pool.join()
+    pool.close()
