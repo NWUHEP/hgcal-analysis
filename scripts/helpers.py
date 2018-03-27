@@ -10,8 +10,8 @@ import shapely.geometry as geometry
 from shapely.ops import cascaded_union, polygonize
 from tqdm import tqdm
 
-sys.path.append('/usr/local/lib')
-from root_pandas import read_root
+#sys.path.append('/usr/local/lib')
+#from root_pandas import read_root
 
 
 def assign_phi(df):
@@ -57,17 +57,16 @@ def propagate_to_face(theta, phi, pt, z, mass):
 #    df = df[features]
 #    return df
 
-
 def alpha_shape(points, alpha):
     """
     Taken from http://blog.thehumangeo.com/2014/05/12/drawing-boundaries-in-python/
-    Compute the alpha shape (concave hull) of a set
-    of points.
+    Compute the alpha shape (concave hull) of a set of points.
+
     @param points: Iterable container of points.
     @param alpha: alpha value to influence the
-        gooeyness of the border. Smaller numbers
-        don't fall inward as much as larger numbers.
-        Too large, and you lose everything!
+                  gooeyness of the border. Smaller numbers
+                  don't fall inward as much as larger numbers.
+                  Too large, and you lose everything!
     """
 
     def add_edge(edges, edge_points, coords, i, j):

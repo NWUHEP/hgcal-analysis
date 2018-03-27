@@ -17,7 +17,6 @@ def get_current_time():
 
 
 def unpack_tree(tree, is_pileup=False):
-
     # make trigger cell dataframe
     df_tmp = dict(x       = np.array(tree.tc_x),
                   y       = np.array(tree.tc_y),
