@@ -18,7 +18,7 @@ def get_current_time():
     return currentTime
 
 
-def unpack_tree(tree, is_pileup=False):
+def unpack_tree(tree, algo_list, is_pileup=False):
     # make trigger cell dataframe
     df_tmp = dict(x       = np.array(tree.tc_x),
                   y       = np.array(tree.tc_y),
@@ -34,9 +34,10 @@ def unpack_tree(tree, is_pileup=False):
                   reco_e  = np.array(tree.tc_energy),
                   sim_e   = np.array(tree.tc_simenergy) if not is_pileup else np.zeros(tree.tc_n),
                   )
-    df_tmp = pd.DataFrame(df_tmp)
+    df_tmp  = pd.DataFrame(df_tmp)
+    df_algo = pd.DataFrame({f'{algo}': np.zeros(df_tmp.shape[0], dtype=bool) for algo in algo_list})
 
-    return df_tmp
+    return pd.concat([df_tmp, df_algo], axis=1)
 
 def get_genpart(tree):
     # save gen particle data
@@ -55,9 +56,10 @@ def get_genpart(tree):
 
 def mix_and_analyze(run_data):
 
-    file_count = run_data['file_count']
-    n_epochs   = run_data['n_epochs']
-    output_dir = run_data['output_dir']
+    file_count      = run_data['file_count']
+    n_epochs        = run_data['n_epochs']
+    output_dir      = run_data['output_dir']
+    mippt_threshold = run_data['mippt_threshold']
 
     # some useful data
     pileup_file = r.TFile(run_data['pileup_filename'])
@@ -70,45 +72,49 @@ def mix_and_analyze(run_data):
     n_signal    = signal_tree.GetEntriesFast()
     signal_evts = list(range(n_signal))
 
-    bx          = list(range(8))
-    mi_labels   = ['zside', 'layer', 'sector', 'panel']
+    np.random.seed()
+    bx = list(range(8))
 
     # algorithms to test
-    #algo_list = [
-    #             'threshold_1bx_esort', 'threshold_8bx_esort', 
-    #             'threshold_1bx_nosort', 'threshold_8bx_nosort'
-    #             ]
-    #mippt_scan = np.arange(0, 10, 1)
+    algo_list = [
+                 'threshold_1bx_esort', 'threshold_8bx_esort', 
+                 'threshold_1bx_nosort', 'threshold_8bx_nosort'
+                 ]
 
     # make df_lists and test algorithms
     data_list = []
-    gen_list = []
-    for i in trange(n_epochs):
+    gen_list  = []
+    mi_labels = ['zside', 'layer', 'sector', 'panel']
+    for i in trange(n_epochs, position=file_count, leave=False):
         np.random.shuffle(bx)
         isig = np.random.choice(signal_evts)
         ibg  = np.random.choice(pileup_evts)
         
         # get signal data
         signal_tree.GetEntry(isig)
-        df_sig = unpack_tree(signal_tree)
+        df_sig = unpack_tree(signal_tree, algo_list)
         df_sig['ievt'] = bx[0]
+        df_sig = df_sig.query(f'mip_pt > {mippt_threshold}')
 
         # get pileup data
         bg_list = []
         for cnt, j in enumerate(range(7)):
             pileup_tree.GetEntry(ibg+j)
-            df_bg = unpack_tree(pileup_tree, is_pileup=True)
+            df_bg = unpack_tree(pileup_tree, algo_list, is_pileup=True)
             df_bg['ievt'] = bx[cnt + 1]
+            df_bg = df_bg.query(f'mip_pt > {mippt_threshold}')
             bg_list.append(df_bg)
 
-        df = pd.concat(bg_list + [df_sig])
+        df = pd.concat(bg_list + [df_sig], axis=0)
 
         # only save data from panels that have simhits 
         df = df.groupby(mi_labels).filter(lambda x: x.sim_e.sum() > 0)
+        df = df.reset_index(drop=True) 
 
         # apply readout algorithms
-        #df = pd.concat((df, pd.DataFrame({f'{algo}_{c}':df['mip_pt'] > c for c in mippt_scan for algo in algo_list})), axis=1)
-        #df = df.groupby(mi_labels).apply(partial(algos.algorithm_test, mippt_scan=mippt_scan))
+        df = df.groupby(mi_labels).apply(algos.algorithm_test_8bx)
+        df = df.reset_index(drop=True) 
+        df = df.groupby(mi_labels + ['ievt']).apply(algos.algorithm_test_1bx)
 
         # get gen objects
         gen_df = get_genpart(signal_tree)
@@ -121,7 +127,8 @@ def mix_and_analyze(run_data):
     signal_file.Close()
     pileup_file.Close()
 
-    output_file = open(f'{output_dir}/output_{n_epochs}_{file_count}.pkl', 'wb')
+    output_file = open(f'{output_dir}/output_{file_count}.pkl', 'wb')
+    pickle.dump(mippt_threshold, output_file)
     pickle.dump(gen_list, output_file)
     pickle.dump(data_list, output_file)
     output_file.close()
@@ -154,6 +161,11 @@ if __name__ == '__main__':
                         help='specifies bunch pattern (not currently implented)',
                         type=str
                         )
+    parser.add_argument('--threshold',
+                        help='threshold to place on the minimum mip pt considered when simulating readout',
+                        default=2.,
+                        type=float
+                        )
     args = parser.parse_args()
     ###############################
 
@@ -165,15 +177,20 @@ if __name__ == '__main__':
     input_name      = signal_filename.split('/')[-1].split('.')[0]
 
     # multiprocess the data mixing and algorithm testing
-    output_dir = f'data/mc_mixtures/{input_name}_{get_current_time()}'
+    #output_dir = f'data/mc_mixtures/{input_name}_{get_current_time()}'
+    output_dir = f'data/mc_mixtures/{input_name}_test'
     if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        os.makedirs(output_dir)
+    else:
+        os.system(f'rm -r {output_dir}/*')
 
-    run_data    = [dict(file_count  = i,
-                        n_epochs    = n_epochs,
+    mipscan = np.arange(2, 10, 8/n_process)
+    run_data    = [dict(file_count      = i,
+                        n_epochs        = n_epochs,
                         signal_filename = signal_filename,
                         pileup_filename = pileup_filename,
-                        output_dir  = output_dir
+                        output_dir      = output_dir,
+                        mippt_threshold = i/2 + 2
                         ) for i in range(n_process)]
     pool        = Pool(processes = n_process)
     pfunc       = partial(mix_and_analyze)
