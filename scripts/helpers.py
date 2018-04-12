@@ -13,6 +13,12 @@ from tqdm import tqdm
 #sys.path.append('/usr/local/lib')
 #from root_pandas import read_root
 
+def delta_phi(phi1, phi2, phi_range=(-np.pi, np.pi)):
+    dphi = np.abs(phi2 - phi1) 
+    if dphi > np.pi:
+        dphi = 2*np.pi - dphi
+
+    return dphi
 
 def assign_phi(df):
     x, y = df.x.values, df.y.values
