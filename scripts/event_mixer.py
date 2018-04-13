@@ -22,7 +22,6 @@ def unpack_tree(tree, algo_list, is_pileup=False):
     # make trigger cell dataframe
     df_tmp = dict(x       = np.array(tree.tc_x),
                   y       = np.array(tree.tc_y),
-                  z       = np.array(tree.tc_z),
                   zside   = np.array(tree.tc_zside),
                   layer   = np.array(tree.tc_layer, dtype=int),
                   subdet  = np.array(tree.tc_subdet, dtype=int),
@@ -30,8 +29,6 @@ def unpack_tree(tree, algo_list, is_pileup=False):
                   panel   = np.array(tree.tc_panel_number, dtype=int),
                   wafer   = np.array(tree.tc_wafer, dtype=int),
                   cell    = np.array(tree.tc_cell, dtype=int),
-                  eta     = np.array(tree.tc_eta),
-                  phi     = np.array(tree.tc_phi),
                   pt      = np.array(tree.tc_pt),
                   mip_pt  = np.array(tree.tc_mipPt),
                   reco_e  = np.array(tree.tc_energy),
@@ -56,17 +53,6 @@ def get_genpart(tree):
     #particles = particles[:2]
     return particles
 
-def get_genjets(tree):
-    # save gen jeticle data
-    jets = dict(e   = np.array(tree.genjet_energy),
-                eta = np.array(tree.genjet_eta),
-                phi = np.array(tree.genjet_phi),
-                pt  = np.array(tree.genjet_pt),
-                n   = np.array(tree.genjet_n),
-                )
-    jets = pd.DataFrame(jets)
-    return jets
-
 
 def mix_and_analyze(run_data):
 
@@ -74,7 +60,6 @@ def mix_and_analyze(run_data):
     n_epochs        = run_data['n_epochs']
     output_dir      = run_data['output_dir']
     mippt_threshold = run_data['mippt_threshold']
-    save_jets       = run_data['save_jets']
 
     # some useful data
     pileup_file = r.TFile(run_data['pileup_filename'])
@@ -100,7 +85,7 @@ def mix_and_analyze(run_data):
     data_list = []
     gen_list  = []
     mi_labels = ['zside', 'layer', 'sector', 'panel']
-    for i in trange(n_epochs, position=file_count, leave=True): #, description=f'process {file_count}'):
+    for i in trange(n_epochs, position=file_count, leave=False):
         np.random.shuffle(bx)
         isig = np.random.choice(signal_evts)
         ibg  = np.random.choice(pileup_evts)
@@ -109,7 +94,6 @@ def mix_and_analyze(run_data):
         signal_tree.GetEntry(isig)
         df_sig = unpack_tree(signal_tree, algo_list)
         df_sig['ievt'] = bx[0]
-        df_sig['sig_evt'] = True
         df_sig = df_sig.query(f'mip_pt > {mippt_threshold}')
 
         # get pileup data
@@ -118,7 +102,6 @@ def mix_and_analyze(run_data):
             pileup_tree.GetEntry(ibg+j)
             df_bg = unpack_tree(pileup_tree, algo_list, is_pileup=True)
             df_bg['ievt'] = bx[cnt + 1]
-            df_bg['sig_evt'] = False
             df_bg = df_bg.query(f'mip_pt > {mippt_threshold}')
             bg_list.append(df_bg)
 
@@ -134,10 +117,7 @@ def mix_and_analyze(run_data):
         df = df.groupby(mi_labels + ['ievt']).apply(algos.algorithm_test_1bx)
 
         # get gen objects
-        if save_jets:
-            gen_df = get_genjets(signal_tree)
-        else:
-            gen_df = get_genpart(signal_tree)
+        gen_df = get_genpart(signal_tree)
 
         # save dataframes for making plots
         df = df.reset_index(drop=True) # don't save heirarchical indices
@@ -186,11 +166,6 @@ if __name__ == '__main__':
                         default=2.,
                         type=float
                         )
-    parser.add_argument('--save-jets',
-                        type=bool,
-                        default=False,
-                        help='switch to saving gen jets instead of individual particles'
-                        )
     args = parser.parse_args()
     ###############################
 
@@ -209,14 +184,13 @@ if __name__ == '__main__':
     else:
         os.system(f'rm -r {output_dir}/*')
 
-    #mipscan = np.arange(2, 11, 8/n_process)
+    mipscan = np.arange(2, 10, 8/n_process)
     run_data    = [dict(file_count      = i,
                         n_epochs        = n_epochs,
                         signal_filename = signal_filename,
                         pileup_filename = pileup_filename,
                         output_dir      = output_dir,
-                        save_jets       = args.save_jets,
-                        mippt_threshold = i + 2
+                        mippt_threshold = i/2 + 2
                         ) for i in range(n_process)]
     pool        = Pool(processes = n_process)
     pfunc       = partial(mix_and_analyze)

@@ -17,11 +17,6 @@ if __name__ == '__main__':
                         help='root file to be skimmed',
                         type=str
                        )
-    parser.add_argument('--save-jets',
-                        help='save gen jets data in place of gen particles',
-                        type=bool,
-                        default=False
-                        )
     args = parser.parse_args()
     ###############################
 
@@ -36,34 +31,21 @@ if __name__ == '__main__':
     for i in trange(n_entries):
         tree.GetEntry(i)
 
-        if not args.save_jets:
-            # get gen particle data
-            particles = dict(e   = np.array(tree.genpart_energy),
-                             pt  = np.array(tree.genpart_pt),
-                             eta = np.array(tree.genpart_eta),
-                             phi = np.array(tree.genpart_phi),
-                             ex  = np.array(tree.genpart_exx),
-                             ey  = np.array(tree.genpart_exy),
-                             pid = np.array(tree.genpart_pid)
-                            )
-            particles = pd.DataFrame(particles)
-            if particles.shape[0] < 2:
-                continue
-
-            if 1.6 < abs(particles.loc[0].eta) < 2.8:
-                skim_tree.Fill()
-        else:
-            # get gen jet data
-            jets = dict(e   = np.array(tree.genjet_energy),
-                        pt  = np.array(tree.genjet_pt),
-                        eta = np.array(tree.genjet_eta),
-                        phi = np.array(tree.genjet_phi),
-                        n   = np.array(tree.genjet_n)
+        # get gen particle data
+        particles = dict(e   = np.array(tree.genpart_energy),
+                         pt  = np.array(tree.genpart_pt),
+                         eta = np.array(tree.genpart_eta),
+                         phi = np.array(tree.genpart_phi),
+                         ex  = np.array(tree.genpart_exx),
+                         ey  = np.array(tree.genpart_exy),
+                         pid = np.array(tree.genpart_pid)
                         )
-            jets = pd.DataFrame(jets)
-            
-            if jets.query('pt > 20 and 1.6 < abs(eta) < 2.8').shape[0] > 0:
-                skim_tree.Fill()
+        particles = pd.DataFrame(particles)
+        if particles.shape[0] < 2:
+            continue
+
+        if 1.7 < abs(particles.loc[0].eta) < 2.7:
+            skim_tree.Fill()
 
     skim_tree.Print()
     skim_tree.AutoSave()
