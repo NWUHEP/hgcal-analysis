@@ -22,6 +22,7 @@ def unpack_tree(tree, is_pileup=False):
     # make trigger cell dataframe
     df_tmp = dict(x       = np.array(tree.tc_x),
                   y       = np.array(tree.tc_y),
+                  z       = np.array(tree.tc_z),
                   zside   = np.array(tree.tc_zside),
                   layer   = np.array(tree.tc_layer, dtype=int),
                   subdet  = np.array(tree.tc_subdet, dtype=int),
@@ -29,6 +30,8 @@ def unpack_tree(tree, is_pileup=False):
                   panel   = np.array(tree.tc_panel_number, dtype=int),
                   wafer   = np.array(tree.tc_wafer, dtype=int),
                   cell    = np.array(tree.tc_cell, dtype=int),
+                  eta     = np.array(tree.tc_eta),
+                  phi     = np.array(tree.tc_phi),
                   pt      = np.array(tree.tc_pt),
                   mip_pt  = np.array(tree.tc_mipPt),
                   reco_e  = np.array(tree.tc_energy),
@@ -53,78 +56,49 @@ def get_genpart(tree):
     return particles
 
 
-def mix_and_analyze(run_data):
+def convert_tree(run_data):
 
-    file_count = run_data['file_count']
-    n_epochs   = run_data['n_epochs']
-    output_dir = run_data['output_dir']
+    file_type   = run_data['file_type']
+    n_processes = run_data['n_process']
+    file_count  = run_data['file_count']
+    output_dir  = run_data['output_dir']
 
     # some useful data
-    pileup_file = r.TFile(run_data['pileup_filename'])
-    pileup_tree = pileup_file.Get('hgcalTriggerNtuplizer/HGCalTriggerNtuple')
-    n_pileup    = pileup_tree.GetEntriesFast()
-    pileup_evts = list(range(n_pileup - 7)) # leave off the last seven events for sampling purposes
+    rootfile = r.TFile(run_data['filename'])
+    if (file_type == 'pileup'):
+        tree = rootfile.Get('hgcalTriggerNtuplizer/HGCalTriggerNtuple') # this depends on the file
+    else:
+        tree = rootfile.Get('HGCalTriggerNtuple') # this depends on the file
+    n_events = tree.GetEntriesFast()
 
-    signal_file = r.TFile(run_data['signal_filename'])
-    signal_tree = signal_file.Get('HGCalTriggerNtuple')
-    n_signal    = signal_tree.GetEntriesFast()
-    signal_evts = list(range(n_signal))
-
-    bx          = list(range(8))
-    mi_labels   = ['zside', 'layer', 'sector', 'panel']
-
-    # algorithms to test
-    #algo_list = [
-    #             'threshold_1bx_esort', 'threshold_8bx_esort', 
-    #             'threshold_1bx_nosort', 'threshold_8bx_nosort'
-    #             ]
-    #mippt_scan = np.arange(0, 10, 1)
-
-    # make df_lists and test algorithms
     data_list = []
-    gen_list = []
-    for i in trange(n_epochs):
-        np.random.shuffle(bx)
-        isig = np.random.choice(signal_evts)
-        ibg  = np.random.choice(pileup_evts)
+    gen_list  = []
+    file_count = 1
+    for i in trange(n_events):
         
         # get signal data
-        signal_tree.GetEntry(isig)
-        df_sig = unpack_tree(signal_tree)
-        df_sig['ievt'] = bx[0]
-
-        # get pileup data
-        bg_list = []
-        for cnt, j in enumerate(range(7)):
-            pileup_tree.GetEntry(ibg+j)
-            df_bg = unpack_tree(pileup_tree, is_pileup=True)
-            df_bg['ievt'] = bx[cnt + 1]
-            bg_list.append(df_bg)
-
-        df = pd.concat(bg_list + [df_sig])
-
-        # only save data from panels that have simhits 
-        df = df.groupby(mi_labels).filter(lambda x: x.sim_e.sum() > 0)
-
-        # apply readout algorithms
-        #df = pd.concat((df, pd.DataFrame({f'{algo}_{c}':df['mip_pt'] > c for c in mippt_scan for algo in algo_list})), axis=1)
-        #df = df.groupby(mi_labels).apply(partial(algos.algorithm_test, mippt_scan=mippt_scan))
-
-        # get gen objects
-        gen_df = get_genpart(signal_tree)
-
-        # save dataframes for making plots
-        df = df.reset_index(drop=True) # don't save heirarchical indices
+        tree.GetEntry(i)
+        df = unpack_tree(tree, is_pileup=(file_type == 'pileup'))
         data_list.append(df)
-        gen_list.append(gen_df)
 
-    signal_file.Close()
-    pileup_file.Close()
+        #gen_df = get_genpart(tree)
+        #gen_list.append(gen_df)
+        if i%1000 == 0 and i > 0:
+            output_file = open(f'{output_dir}/output_{file_count}.pkl', 'wb')
+            #pickle.dump(gen_list, output_file)
+            pickle.dump(data_list, output_file)
+            output_file.close()
+            file_count += 1
 
-    output_file = open(f'{output_dir}/output_{n_epochs}_{file_count}.pkl', 'wb')
-    pickle.dump(gen_list, output_file)
-    pickle.dump(data_list, output_file)
-    output_file.close()
+            data_list = []
+
+    if len(data_list) > 0:
+        output_file = open(f'{output_dir}/output_{file_count}.pkl', 'wb')
+        #pickle.dump(gen_list, output_file)
+        pickle.dump(data_list, output_file)
+        output_file.close()
+
+    rootfile.Close()
 
     return True 
 
@@ -132,52 +106,41 @@ if __name__ == '__main__':
 
     # parse arguments #
     parser = argparse.ArgumentParser(description='Convert hgcal root ntuples to dataframes')
-    parser.add_argument('signal_input',
-                        help='root file containing signal process',
+    parser.add_argument('input',
+                        help='input root file',
                         type=str
-                        )
-    parser.add_argument('pileup_input',
-                        help='root file containing pure pileup samples',
-                        type=str
-                        )
-    parser.add_argument('-n', '--nepochs',
-                        help='number of epochs',
-                        default=10,
-                        type=int
                         )
     parser.add_argument('-p', '--processes',
                         help='number of concurrent processes to run',
-                        default=8,
+                        default=1,
                         type=int
                         )
-    parser.add_argument('-b', '--bunch-pattern',
-                        help='specifies bunch pattern (not currently implented)',
+    parser.add_argument('-t', '--file-type',
+                        help='file type',
+                        default='pileup',
                         type=str
                         )
     args = parser.parse_args()
     ###############################
 
     # unpack arguments
-    n_process       = args.processes
-    n_epochs        = args.nepochs
-    signal_filename = args.signal_input
-    pileup_filename = args.pileup_input
-    input_name      = signal_filename.split('/')[-1].split('.')[0]
+    filename   = args.input
+    n_process  = args.processes
+    input_name = filename.split('/')[-1].split('.')[0]
 
     # multiprocess the data mixing and algorithm testing
-    output_dir = f'data/mc_mixtures/{input_name}_{get_current_time()}'
+    output_dir = f'data/{input_name}'
     if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
-    run_data    = [dict(file_count  = i,
-                        n_epochs    = n_epochs,
-                        signal_filename = signal_filename,
-                        pileup_filename = pileup_filename,
-                        output_dir  = output_dir
+    run_data    = [dict(file_count = i,
+                        filename   = filename,
+                        output_dir = output_dir,
+                        n_process  = n_process,
+                        file_type  = args.file_type
                         ) for i in range(n_process)]
     pool        = Pool(processes = n_process)
-    pfunc       = partial(mix_and_analyze)
-    pool_result = pool.map(pfunc, run_data)
+    pool_result = pool.map(convert_tree, run_data)
 
     pool.close()
     pool.join()
