@@ -46,8 +46,14 @@ def get_genpart(tree):
     particles = dict(e   = np.array(tree.genpart_energy),
                      eta = np.array(tree.genpart_eta),
                      phi = np.array(tree.genpart_phi),
-                     ex  = np.array(tree.genpart_exx),
                      pt  = np.array(tree.genpart_pt),
+                     dvx = np.array(tree.genpart_dvx),
+                     dvy = np.array(tree.genpart_dvy),
+                     dvz = np.array(tree.genpart_dvz),
+                     ovx = np.array(tree.genpart_ovx),
+                     ovy = np.array(tree.genpart_ovy),
+                     ovz = np.array(tree.genpart_ovz),
+                     ex  = np.array(tree.genpart_exx),
                      ey  = np.array(tree.genpart_exy),
                      pid = np.array(tree.genpart_pid)
                     )
@@ -59,21 +65,21 @@ def get_genpart(tree):
 def convert_tree(run_data):
 
     file_type   = run_data['file_type']
-    n_processes = run_data['n_process']
     file_count  = run_data['file_count']
     output_dir  = run_data['output_dir']
 
     # some useful data
     rootfile = r.TFile(run_data['filename'])
-    if (file_type == 'pileup'):
-        tree = rootfile.Get('hgcalTriggerNtuplizer/HGCalTriggerNtuple') # this depends on the file
-    else:
-        tree = rootfile.Get('HGCalTriggerNtuple') # this depends on the file
+    #if (file_type == 'pileup'):
+    #    tree = rootfile.Get('hgcalTriggerNtuplizer/HGCalTriggerNtuple') # this depends on the file
+    #else:
+    #    tree = rootfile.Get('HGCalTriggerNtuple') # this depends on the file
+
+    tree = rootfile.Get('HGCalTriggerNtuple') # this depends on the file
     n_events = tree.GetEntriesFast()
 
     data_list = []
     gen_list  = []
-    file_count = 1
     for i in trange(n_events):
         
         # get signal data
@@ -81,20 +87,22 @@ def convert_tree(run_data):
         df = unpack_tree(tree, is_pileup=(file_type == 'pileup'))
         data_list.append(df)
 
-        #gen_df = get_genpart(tree)
-        #gen_list.append(gen_df)
+        gen_df = get_genpart(tree)
+        gen_list.append(gen_df)
+
         if i%1000 == 0 and i > 0:
             output_file = open(f'{output_dir}/output_{file_count}.pkl', 'wb')
-            #pickle.dump(gen_list, output_file)
+            pickle.dump(gen_list, output_file)
             pickle.dump(data_list, output_file)
             output_file.close()
             file_count += 1
 
+            gen_list  = []
             data_list = []
 
     if len(data_list) > 0:
         output_file = open(f'{output_dir}/output_{file_count}.pkl', 'wb')
-        #pickle.dump(gen_list, output_file)
+        pickle.dump(gen_list, output_file)
         pickle.dump(data_list, output_file)
         output_file.close()
 
@@ -117,7 +125,7 @@ if __name__ == '__main__':
                         )
     parser.add_argument('-t', '--file-type',
                         help='file type',
-                        default='pileup',
+                        default='normal',
                         type=str
                         )
     args = parser.parse_args()
@@ -133,15 +141,22 @@ if __name__ == '__main__':
     if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
-    run_data    = [dict(file_count = i,
-                        filename   = filename,
-                        output_dir = output_dir,
-                        n_process  = n_process,
-                        file_type  = args.file_type
-                        ) for i in range(n_process)]
-    pool        = Pool(processes = n_process)
-    pool_result = pool.map(convert_tree, run_data)
+    run_data    = dict(file_count = 0,
+                       filename   = filename,
+                       output_dir = output_dir,
+                       file_type  = args.file_type
+                       ) 
+    convert_tree(run_data)
 
-    pool.close()
-    pool.join()
-    pool.close()
+    #run_data    = [dict(file_count = i,
+    #                    filename   = filename,
+    #                    output_dir = output_dir,
+    #                    n_process  = n_process,
+    #                    file_type  = args.file_type
+    #                    ) for i in range(n_process)]
+    #pool        = Pool(processes = n_process)
+    #pool_result = pool.map(convert_tree, run_data)
+
+    #pool.close()
+    #pool.join()
+    #pool.close()

@@ -47,13 +47,12 @@ def get_genpart(tree):
     particles = dict(e   = np.array(tree.genpart_energy),
                      eta = np.array(tree.genpart_eta),
                      phi = np.array(tree.genpart_phi),
-                     ex  = np.array(tree.genpart_exx),
                      pt  = np.array(tree.genpart_pt),
+                     ex  = np.array(tree.genpart_exx),
                      ey  = np.array(tree.genpart_exy),
                      pid = np.array(tree.genpart_pid)
                     )
     particles = pd.DataFrame(particles)
-    #particles = particles[:2]
     return particles
 
 def get_genjets(tree):
@@ -203,7 +202,7 @@ if __name__ == '__main__':
 
     # multiprocess the data mixing and algorithm testing
     #output_dir = f'data/mc_mixtures/{input_name}_{get_current_time()}'
-    output_dir = f'data/mc_mixtures/{input_name}_test'
+    output_dir = f'data/mc_mixtures/{input_name}'
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     else:
