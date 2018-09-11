@@ -35,7 +35,7 @@ def unpack_tree(tree, is_pileup=False):
                   pt      = np.array(tree.tc_pt),
                   mip_pt  = np.array(tree.tc_mipPt),
                   reco_e  = np.array(tree.tc_energy),
-                  sim_e   = np.array(tree.tc_simenergy) if not is_pileup else np.zeros(tree.tc_n),
+                  #sim_e   = np.array(tree.tc_simenergy) if not is_pileup else np.zeros(tree.tc_n),
                   )
     df_tmp = pd.DataFrame(df_tmp)
 
@@ -69,7 +69,7 @@ def convert_tree(run_data):
     output_dir  = run_data['output_dir']
 
     # some useful data
-    rootfile = r.TFile(run_data['filename'])
+    rootfile = r.TFile(run_data['filepath'])
     #if (file_type == 'pileup'):
     #    tree = rootfile.Get('hgcalTriggerNtuplizer/HGCalTriggerNtuple') # this depends on the file
     #else:
@@ -132,24 +132,24 @@ if __name__ == '__main__':
     ###############################
 
     # unpack arguments
-    filename   = args.input
+    filepath   = args.input
     n_process  = args.processes
-    input_name = filename.split('/')[-1].split('.')[0]
+    input_name = filepath.split('/')[-1].split('.')[0]
 
     # multiprocess the data mixing and algorithm testing
-    output_dir = f'data/{input_name}'
+    output_dir = '/'.join(filepath.split('/')[:-1])
     if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
     run_data    = dict(file_count = 0,
-                       filename   = filename,
+                       filepath   = filepath,
                        output_dir = output_dir,
                        file_type  = args.file_type
                        ) 
     convert_tree(run_data)
 
     #run_data    = [dict(file_count = i,
-    #                    filename   = filename,
+    #                    filepath   = filepath,
     #                    output_dir = output_dir,
     #                    n_process  = n_process,
     #                    file_type  = args.file_type
