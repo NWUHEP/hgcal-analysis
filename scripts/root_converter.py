@@ -18,7 +18,7 @@ def get_current_time():
     return currentTime
 
 
-def unpack_tree(tree, is_pileup=False):
+def unpack_tc(tree, is_pileup=False):
     # make trigger cell dataframe
     df_tmp = dict(x       = np.array(tree.tc_x),
                   y       = np.array(tree.tc_y),
@@ -30,9 +30,9 @@ def unpack_tree(tree, is_pileup=False):
                   panel   = np.array(tree.tc_panel_number, dtype=int),
                   wafer   = np.array(tree.tc_wafer, dtype=int),
                   cell    = np.array(tree.tc_cell, dtype=int),
-                  eta     = np.array(tree.tc_eta),
-                  phi     = np.array(tree.tc_phi),
-                  pt      = np.array(tree.tc_pt),
+                  tc_pt   = np.array(tree.tc_pt),
+                  tc_eta  = np.array(tree.tc_eta),
+                  tc_phi  = np.array(tree.tc_phi),
                   mip_pt  = np.array(tree.tc_mipPt),
                   reco_e  = np.array(tree.tc_energy),
                   #sim_e   = np.array(tree.tc_simenergy) if not is_pileup else np.zeros(tree.tc_n),
@@ -61,6 +61,30 @@ def get_genpart(tree):
     #particles = particles[:2]
     return particles
 
+def get_clusters(tree):
+    # save gen particle data
+    clusters = dict(
+                    cl_pt        = np.array(tree.cl3d_pt),
+                    cl_e         = np.array(tree.cl3d_energy),
+                    cl_eta       = np.array(tree.cl3d_eta),
+                    cl_phi       = np.array(tree.cl3d_phi),
+                    n            = np.array(tree.cl3d_n),
+                    id           = np.array(tree.cl3d_id),
+                    clusters_n   = np.array(tree.cl3d_clusters_n),
+                    showerlength = np.array(tree.cl3d_showerlength),
+                    corelength   = np.array(tree.cl3d_coreshowerlength),
+                    seetot       = np.array(tree.cl3d_seetot),
+                    seemax       = np.array(tree.cl3d_seemax),
+                    spptot       = np.array(tree.cl3d_spptot),
+                    sppmax       = np.array(tree.cl3d_sppmax),
+                    srrtot       = np.array(tree.cl3d_srrtot),
+                    srrmax       = np.array(tree.cl3d_srrmax),
+                    srrmean      = np.array(tree.cl3d_srrmean),
+                    szz          = np.array(tree.cl3d_szz),
+                   )
+    clusters = pd.DataFrame(clusters)
+    return clusters
+
 
 def convert_tree(run_data):
 
@@ -75,35 +99,41 @@ def convert_tree(run_data):
     #else:
     #    tree = rootfile.Get('HGCalTriggerNtuple') # this depends on the file
 
-    tree = rootfile.Get('HGCalTriggerNtuple') # this depends on the file
+    tree = rootfile.Get('hgcalTriggerNtuplizer/HGCalTriggerNtuple') # this depends on the file
     n_events = tree.GetEntriesFast()
 
-    data_list = []
-    gen_list  = []
+    tc_list      = []
+    gen_list     = []
+    cluster_list = []
     for i in trange(n_events):
         
         # get signal data
         tree.GetEntry(i)
-        df = unpack_tree(tree, is_pileup=(file_type == 'pileup'))
-        data_list.append(df)
+        df_tc = unpack_tc(tree, is_pileup=(file_type == 'pileup'))
+        tc_list.append(df_tc)
 
-        gen_df = get_genpart(tree)
-        gen_list.append(gen_df)
+        df_gen = get_genpart(tree)
+        gen_list.append(df_gen)
+
+        df_cluster = get_clusters(tree)
+        cluster_list.append(df_cluster)
 
         if i%1000 == 0 and i > 0:
             output_file = open(f'{output_dir}/output_{file_count}.pkl', 'wb')
             pickle.dump(gen_list, output_file)
-            pickle.dump(data_list, output_file)
+            pickle.dump(tc_list, output_file)
+            pickle.dump(cluster_list, output_file)
             output_file.close()
             file_count += 1
 
             gen_list  = []
-            data_list = []
+            tc_list = []
 
-    if len(data_list) > 0:
+    if len(tc_list) > 0:
         output_file = open(f'{output_dir}/output_{file_count}.pkl', 'wb')
         pickle.dump(gen_list, output_file)
-        pickle.dump(data_list, output_file)
+        pickle.dump(tc_list, output_file)
+        pickle.dump(cluster_list, output_file)
         output_file.close()
 
     rootfile.Close()
@@ -116,6 +146,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Convert hgcal root ntuples to dataframes')
     parser.add_argument('input',
                         help='input root file',
+                        type=str
+                        )
+    parser.add_argument('output',
+                        help='output destination directory',
                         type=str
                         )
     parser.add_argument('-p', '--processes',
@@ -132,25 +166,24 @@ if __name__ == '__main__':
     ###############################
 
     # unpack arguments
-    filepath   = args.input
-    n_process  = args.processes
-    input_name = filepath.split('/')[-1].split('.')[0]
+    filepath  = args.input
+    n_process = args.processes
+    filename  = filepath.split('/')[-1].split('.')[0]
 
     # multiprocess the data mixing and algorithm testing
-    output_dir = '/'.join(filepath.split('/')[:-1])
-    if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+    if not os.path.exists(args.output):
+            os.makedirs(args.output)
 
     run_data    = dict(file_count = 0,
                        filepath   = filepath,
-                       output_dir = output_dir,
+                       output_dir = args.output,
                        file_type  = args.file_type
                        ) 
     convert_tree(run_data)
 
     #run_data    = [dict(file_count = i,
     #                    filepath   = filepath,
-    #                    output_dir = output_dir,
+    #                    output_dir = args.output,
     #                    n_process  = n_process,
     #                    file_type  = args.file_type
     #                    ) for i in range(n_process)]
