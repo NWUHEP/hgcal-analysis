@@ -13,6 +13,24 @@ from tqdm import tqdm
 #sys.path.append('/usr/local/lib')
 #from root_pandas import read_root
 
+def set_default_style():                    
+    import matplotlib                       
+    np.set_printoptions(precision=3)        
+    matplotlib.style.use('default')         
+    params = {                              
+              'axes.facecolor': 'white',    
+              'axes.titlesize':'x-large',   
+              'axes.labelsize'    : 19,     
+              'xtick.labelsize'   : 16,     
+              'ytick.labelsize'   : 16,     
+              'figure.titlesize'  : 20,     
+              'figure.figsize'    : (8, 8), 
+              'legend.fontsize'   : 18,     
+              'legend.numpoints'  : 1,      
+              'font.serif': 'Arial'         
+              }                             
+    matplotlib.rcParams.update(params)      
+
 def delta_phi(phi1, phi2, phi_range=(-np.pi, np.pi)):
     dphi = np.abs(phi2 - phi1) 
     if dphi > np.pi:

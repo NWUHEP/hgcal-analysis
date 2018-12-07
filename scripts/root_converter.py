@@ -18,7 +18,7 @@ def get_current_time():
     return currentTime
 
 
-def unpack_tc(tree, is_pileup=False):
+def get_tc(tree, is_pileup=False):
     # make trigger cell dataframe
     df_tmp = dict(x       = np.array(tree.tc_x),
                   y       = np.array(tree.tc_y),
@@ -109,11 +109,15 @@ def convert_tree(run_data):
         
         # get signal data
         tree.GetEntry(i)
-        df_tc = unpack_tc(tree, is_pileup=(file_type == 'pileup'))
-        tc_list.append(df_tc)
+
+        if len(tree.genpart_pid) == 0:
+            continue
 
         df_gen = get_genpart(tree)
         gen_list.append(df_gen)
+
+        df_tc = get_tc(tree, is_pileup=(file_type == 'pileup'))
+        tc_list.append(df_tc)
 
         df_cluster = get_clusters(tree)
         cluster_list.append(df_cluster)
@@ -154,7 +158,7 @@ if __name__ == '__main__':
                         )
     parser.add_argument('-p', '--processes',
                         help='number of concurrent processes to run',
-                        default=1,
+                        default=8,
                         type=int
                         )
     parser.add_argument('-t', '--file-type',
@@ -181,15 +185,26 @@ if __name__ == '__main__':
                        ) 
     convert_tree(run_data)
 
-    #run_data    = [dict(file_count = i,
-    #                    filepath   = filepath,
-    #                    output_dir = args.output,
-    #                    n_process  = n_process,
-    #                    file_type  = args.file_type
-    #                    ) for i in range(n_process)]
-    #pool        = Pool(processes = n_process)
-    #pool_result = pool.map(convert_tree, run_data)
+    #if os.path.isfile(args.input):
+    #    run_data    = dict(file_count = 0,
+    #                       filepath   = filepath,
+    #                       output_dir = args.output,
+    #                       file_type  = args.file_type
+    #                       ) 
+    #    convert_tree(run_data)
 
-    #pool.close()
-    #pool.join()
-    #pool.close()
+    #elif os.path.isdir(args.input):
+    #    pool = Pool(processes = n_process)
+    #    for i, filename in enumerate(os.listdir(args.input)):
+    #        if not filename.endswith('.root'): 
+    #            continue
+
+    #        run_data = dict(file_count = i,
+    #                        filepath   = filepath + filename,
+    #                        output_dir = args.output,
+    #                        file_type  = args.file_type
+    #                        ) 
+    #        pool_result = pool.apply_async(convert_tree, args=(run_data))
+
+    #    pool.close()
+    #    pool.join()
