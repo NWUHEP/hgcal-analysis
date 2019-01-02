@@ -63,86 +63,28 @@ def propagate_to_face(theta, phi, pt, z, mass):
 
     return (x, y, z, t)
 
-#def root_to_dataframe(path, features, index):
-#    '''
-#    Converts a semi-flat root ntuple to a pandas dataframe using root_pandas.
-#
-#    Parameters:
-#    ===========
-#    path : location of input ROOT file
-#    features : these are the branches to be put into the dataframe.  These
-#               should be vectors of basic types which will be flattened.
-#    index : the column to use as the first index (the second index will be
-#            __array_index that comes out of the root_pandas flattening).
-#    '''
-#
-#    df = read_root(path, columns=[index]+features, flatten=True)
-#    df.index = [df[index], df['__array_index']]
-#    df = df[features]
-#    return df
+def associate_gen_to_cluster(gen, df_cl, by='energy'):
+    '''
+    Associates gen particles to clusters.  This is done by two methods:
 
-def alpha_shape(points, alpha):
-    """
-    Taken from http://blog.thehumangeo.com/2014/05/12/drawing-boundaries-in-python/
-    Compute the alpha shape (concave hull) of a set of points.
+        * 'energy' (default): in this case all clusters in a conde of dR=0.2
+        about the gen particles direction are ranked according to pt and the
+        highest is selected.  If none are found, no association is made.
+        * 'proximity': the cluster that is the closest in dR is selected.
+    '''
 
-    @param points: Iterable container of points.
-    @param alpha: alpha value to influence the
-                  gooeyness of the border. Smaller numbers
-                  don't fall inward as much as larger numbers.
-                  Too large, and you lose everything!
-    """
-
-    def add_edge(edges, edge_points, coords, i, j):
-        """
-        Add a line between the i-th and j-th points,
-        if not in the list already
-        """
-        if (i, j) in edges or (j, i) in edges:
-            # already added
-            return
-        edges.add((i, j))
-        edge_points.append(coords[[i, j]])
-
-    tri = Delaunay(points) # this guy is a bitch
-    edges = set()
-    edge_points = []
-    coords = points
-
-    # loop over triangles:
-    # ia, ib, ic = indices of corner points of the
-    # triangle
-    for ia, ib, ic in tri.vertices:
-        pa = coords[ia]
-        pb = coords[ib]
-        pc = coords[ic]
-
-        # Lengths of sides of triangle
-        a = math.sqrt((pa[0]-pb[0])**2 + (pa[1]-pb[1])**2)
-        b = math.sqrt((pb[0]-pc[0])**2 + (pb[1]-pc[1])**2)
-        c = math.sqrt((pc[0]-pa[0])**2 + (pc[1]-pa[1])**2)
-
-        # Semiperimeter of triangle
-        s = (a + b + c)/2.0
-
-        # Area of triangle by Heron's formula
-        try:
-            area = math.sqrt(s*(s-a)*(s-b)*(s-c))
-        except ValueError:
-            print(a, b, c, s)
-
-        if area == 0: continue
-        circum_r = a*b*c/(4.0*area)
-
-        # Here's the radius filter.
-        #print circum_r
-        if circum_r < 1.0/alpha:
-            add_edge(edges, edge_points, coords, ia, ib)
-            add_edge(edges, edge_points, coords, ib, ic)
-            add_edge(edges, edge_points, coords, ic, ia)
-
-    m = geometry.MultiLineString(edge_points)
-    triangles = list(polygonize(m))
-
-    return cascaded_union(triangles), edge_points
+    # calculate dr
+    dphi               = np.abs(gen.phi - df_cl.cl_phi)
+    dphi[dphi > np.pi] = 2*np.pi - dphi[dphi > np.pi]
+    deta               = np.abs(gen.eta - df_cl.cl_eta)
+    dr                 = np.sqrt(deta**2 + dphi**2)
+    
+    if by == 'energy':
+        df_cl_cut = df_cl[dr < 0.3]
+        if df_cl_cut.shape[0] == 0:
+            return None
+        else:
+            return df_cl_cut.sort_values(by='cl_pt', ascending=False).iloc[0]
+    else:
+        return None
 

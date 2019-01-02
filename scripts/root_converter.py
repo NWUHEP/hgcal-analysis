@@ -94,15 +94,10 @@ def convert_tree(run_data):
 
     # some useful data
     rootfile = r.TFile(run_data['filepath'])
-    #if (file_type == 'pileup'):
-    #    tree = rootfile.Get('hgcalTriggerNtuplizer/HGCalTriggerNtuple') # this depends on the file
-    #else:
-    #    tree = rootfile.Get('HGCalTriggerNtuple') # this depends on the file
-
     tree = rootfile.Get('hgcalTriggerNtuplizer/HGCalTriggerNtuple') # this depends on the file
     n_events = tree.GetEntriesFast()
 
-    tc_list      = []
+    #tc_list      = []
     gen_list     = []
     cluster_list = []
     for i in trange(n_events):
@@ -116,29 +111,17 @@ def convert_tree(run_data):
         df_gen = get_genpart(tree)
         gen_list.append(df_gen)
 
-        df_tc = get_tc(tree, is_pileup=(file_type == 'pileup'))
-        tc_list.append(df_tc)
+        #df_tc = get_tc(tree, is_pileup=(file_type == 'pileup'))
+        #tc_list.append(df_tc)
 
         df_cluster = get_clusters(tree)
         cluster_list.append(df_cluster)
 
-        if i%1000 == 0 and i > 0:
-            output_file = open(f'{output_dir}/output_{file_count}.pkl', 'wb')
-            pickle.dump(gen_list, output_file)
-            pickle.dump(tc_list, output_file)
-            pickle.dump(cluster_list, output_file)
-            output_file.close()
-            file_count += 1
-
-            gen_list  = []
-            tc_list = []
-
-    if len(tc_list) > 0:
-        output_file = open(f'{output_dir}/output_{file_count}.pkl', 'wb')
-        pickle.dump(gen_list, output_file)
-        pickle.dump(tc_list, output_file)
-        pickle.dump(cluster_list, output_file)
-        output_file.close()
+    output_file = open(f'{output_dir}/output.pkl', 'wb')
+    pickle.dump(gen_list, output_file)
+    #pickle.dump(tc_list, output_file)
+    pickle.dump(cluster_list, output_file)
+    output_file.close()
 
     rootfile.Close()
 
@@ -178,11 +161,11 @@ if __name__ == '__main__':
     if not os.path.exists(args.output):
             os.makedirs(args.output)
 
-    run_data    = dict(file_count = 0,
-                       filepath   = filepath,
-                       output_dir = args.output,
-                       file_type  = args.file_type
-                       ) 
+    run_data = dict(file_count = 0,
+                    filepath   = filepath,
+                    output_dir = args.output,
+                    file_type  = args.file_type
+                    ) 
     convert_tree(run_data)
 
     #if os.path.isfile(args.input):
