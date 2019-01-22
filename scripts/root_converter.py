@@ -97,7 +97,7 @@ def convert_tree(run_data):
     tree = rootfile.Get('hgcalTriggerNtuplizer/HGCalTriggerNtuple') # this depends on the file
     n_events = tree.GetEntriesFast()
 
-    #tc_list      = []
+    tc_list      = []
     gen_list     = []
     cluster_list = []
     for i in trange(n_events):
@@ -111,15 +111,15 @@ def convert_tree(run_data):
         df_gen = get_genpart(tree)
         gen_list.append(df_gen)
 
-        #df_tc = get_tc(tree, is_pileup=(file_type == 'pileup'))
-        #tc_list.append(df_tc)
+        df_tc = get_tc(tree, is_pileup=(file_type == 'pileup'))
+        tc_list.append(df_tc)
 
         df_cluster = get_clusters(tree)
         cluster_list.append(df_cluster)
 
     output_file = open(f'{output_dir}/output.pkl', 'wb')
     pickle.dump(gen_list, output_file)
-    #pickle.dump(tc_list, output_file)
+    pickle.dump(tc_list, output_file)
     pickle.dump(cluster_list, output_file)
     output_file.close()
 
