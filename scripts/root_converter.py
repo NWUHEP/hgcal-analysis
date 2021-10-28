@@ -69,7 +69,7 @@ def get_clusters(tree):
                     cl_eta       = np.array(tree.cl3d_eta),
                     cl_phi       = np.array(tree.cl3d_phi),
                     n            = np.array(tree.cl3d_n),
-                    id           = np.array(tree.cl3d_id),
+                    cl_id        = np.array(tree.cl3d_id),
                     clusters_n   = np.array(tree.cl3d_clusters_n),
                     showerlength = np.array(tree.cl3d_showerlength),
                     corelength   = np.array(tree.cl3d_coreshowerlength),
@@ -95,7 +95,7 @@ def convert_tree(run_data):
     # some useful data
     rootfile = r.TFile(run_data['filepath'])
     tree = rootfile.Get('hgcalTriggerNtuplizer/HGCalTriggerNtuple') # this depends on the file
-    n_events = tree.GetEntriesFast()
+    n_events = np.min([tree.GetEntriesFast(), int(run_data['nevents'])])
 
     tc_list      = []
     gen_list     = []
@@ -139,6 +139,11 @@ if __name__ == '__main__':
                         help='output destination directory',
                         type=str
                         )
+    parser.add_argument('-n', '--nevents',
+                        help='number of events to be processed',
+                        default='normal',
+                        type=str
+                        )
     parser.add_argument('-p', '--processes',
                         help='number of concurrent processes to run',
                         default=8,
@@ -149,6 +154,7 @@ if __name__ == '__main__':
                         default='normal',
                         type=str
                         )
+
     args = parser.parse_args()
     ###############################
 
@@ -164,7 +170,8 @@ if __name__ == '__main__':
     run_data = dict(file_count = 0,
                     filepath   = filepath,
                     output_dir = args.output,
-                    file_type  = args.file_type
+                    file_type  = args.file_type,
+                    nevents    = args.nevents
                     ) 
     convert_tree(run_data)
 
