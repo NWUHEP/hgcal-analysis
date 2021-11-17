@@ -1,0 +1,15 @@
+---
+local: true
+executable: "scripts/batch_executable.sh"
+output_dir: "/eos/uscms/store/user/naodell/HGCAL/dataframes/"
+stage_dir: "batch"
+prefix: "test"
+
+# provide inputs with location and file split
+inputs: 
+    photons: 
+        location: "/eos/uscms/store/user/naodell/hgcal/econ/SinglePhoton_PT2to200/crab_AE_photons_3_23_2/211028_201803/0000/"
+        files_per_job: 10
+    electrons: 
+        location: "/eos/uscms/store/user/naodell/hgcal/econ/SingleElectron_PT2to200/crab_AE_electrons_3_23_2/211028_195500/0000/"
+        files_per_job: 10

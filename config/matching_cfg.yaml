@@ -1,0 +1,45 @@
+---
+clustering_option: 1
+match_only: false
+dr_threshold: 0.05
+reached_ee: 2
+ntuple_template: 'Floatingpoint{fe}Dummy{be}GenmatchGenclustersntuple/HGCalTriggerNtuple'
+gen_tree: 'FloatingpointThreshold0DummyHistomaxxydr015GenmatchGenclustersntuple/HGCalTriggerNtuple'
+backend: 'Histomaxxydr015'
+frontends: 
+    - 'Threshold0'
+    - 'Mixedbcstc'
+    - 'AutoEncoderStrideTelescope'
+    - 'AutoEncoderStrideTelescopeEle'
+branches_gen: 
+    - 'event' # required
+    - 'genpart_pid' #required
+    - 'genpart_exphi' # required
+    - 'genpart_exeta' # required
+    - 'genpart_gen' # required
+    - 'genpart_reachedEE' # required
+    - 'genpart_pt' #required
+    - 'genpart_energy'
+branches_cl3d:
+    - 'event'
+    - 'cl3d_pt' #required
+    - 'cl3d_eta' # required
+    - 'cl3d_phi' # required
+    - 'cl3d_showerlength'
+    - 'cl3d_coreshowerlength'
+    - 'cl3d_firstlayer'
+    - 'cl3d_maxlayer'
+    - 'cl3d_seetot'
+    - 'cl3d_spptot'
+    - 'cl3d_szz'
+    - 'cl3d_srrtot'
+    - 'cl3d_srrmean'
+    - 'cl3d_hoe'
+    - 'cl3d_meanz'
+    - 'cl3d_layer10'
+    - 'cl3d_layer50'
+    - 'cl3d_layer90'
+    - 'cl3d_ntc67'
+    - 'cl3d_ntc90'
+output_destination: 'data/photons_nopu'
+input_files: 'data/photons_nopu_ntuples.txt'
