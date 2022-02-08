@@ -27,7 +27,7 @@ def set_indices(df):
     event_numbers = df['event']
     new_index = [(e, ix[1]) for e, ix in zip(event_numbers, index)]
     df.set_index(pd.MultiIndex.from_tuples(new_index, names=['event', 'id']), inplace=True)
-    df.drop('event', axis=1)
+    df.drop('event', axis=1, inplace=True)
 
 if __name__=='__main__':
 
@@ -44,9 +44,7 @@ if __name__=='__main__':
     parser.add_argument('--input_file', 
                         default=None, 
                         type=str, 
-                        help='File with list of input files.  If this option is
-                        used, it will override the value provided in the
-                        configuration file.'
+                        help='File with list of input files.  If this option is used, it will override the value provided in the configuration file.'
                         )
     args = parser.parse_args()
    
@@ -89,7 +87,7 @@ if __name__=='__main__':
         uproot_file = uproot.open(filename)
         gen_tree = uproot_file[gen_tree_name]
         df_gen = pd.concat([df for df in gen_tree.iterate(branches_gen, library='pd', step_size=500)])
-        #df_gen.query(gen_cuts, inplace=True)
+        df_gen.query(gen_cuts, inplace=True)
         df_gen_list.append(df_gen)
 
         for fe in frontend_algos:

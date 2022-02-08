@@ -9,7 +9,10 @@ prefix: "test"
 inputs: 
     photons: 
         location: "/eos/uscms/store/user/naodell/hgcal/econ/SinglePhoton_PT2to200/crab_AE_photons_3_23_2/211028_201803/0000/"
-        files_per_job: 10
+        files_per_job: 5
+    photons_nopu: 
+        location: "/eos/uscms/store/user/naodell/hgcal/econ/SinglePhoton_PT2to200/crab_photons_nopu/211115_193613/0000/"
+        files_per_job: 5
     electrons: 
         location: "/eos/uscms/store/user/naodell/hgcal/econ/SingleElectron_PT2to200/crab_AE_electrons_3_23_2/211028_195500/0000/"
-        files_per_job: 10
+        files_per_job: 5

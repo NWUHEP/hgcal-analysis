@@ -21,7 +21,7 @@ def make_file_batches(process, batch_config):
     file_location = batch_config['location']
     files_per_job = batch_config['files_per_job']
 
-    file_list = [f'{file_location}/{f}' for f in os.listdir(file_location)]
+    file_list = [f'{file_location}/{f}' for f in os.listdir(file_location) if f[-4:] == 'root']
     if len(file_list) == 0:
         return None
 

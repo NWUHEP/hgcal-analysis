@@ -8,6 +8,7 @@ echo $2
 tar xzf source.tar.gz
 #xrdcp -r root://cmseos.fnal.gov//store/user/naodell/miniconda .
 
+# setup python environment w/o CMSSW (how?)
 # >>> conda initialize >>>
 # !! Contents within this block are managed by 'conda init' !!
 __conda_setup="$('/uscms/home/naodell/nobackup/opt/miniconda3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
