@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 import os
+import subprocess
 import datetime
-import argparse, optparse
+import argparse
+import optparse
+import textwrap
 import yaml
 from pathlib import Path
 
@@ -35,17 +38,17 @@ def prepare_submit(process, batches, output_dir, executable):
     # Writing the batch config file
     batch_filename = f'.batch_tmp_{process}'
     batch_tmp = open(batch_filename, 'w')
-    batch_tmp.write('''\
-    Universe              = vanilla
-    Should_Transfer_Files = YES
-    WhenToTransferOutput  = ON_EXIT
-    want_graceful_removal = true
-    Notification          = Never
-    Requirements          = OpSys == "LINUX"&& (Arch != "DUMMY" )
-    request_disk          = 2000000
-    request_memory        = 4096
-    \n
-    ''')
+    batch_tmp.write(textwrap.dedent('''\
+        Universe              = vanilla
+        Should_Transfer_Files = YES
+        WhenToTransferOutput  = ON_EXIT
+        want_graceful_removal = true
+        Notification          = Never
+        Requirements          = OpSys == "LINUX"&& (Arch != "DUMMY" )
+        request_disk          = 2000000
+        request_memory        = 4096
+        \n
+    '''))
 
     for i, batch in enumerate(batches):
 
@@ -55,16 +58,16 @@ def prepare_submit(process, batches, output_dir, executable):
         input_file.close()
 
         ### set output directory
-        batch_tmp.write(f'''
-        Executable            = {executable}
-        Arguments             = {i} input_{process}_{i}.txt
-        Transfer_Input_Files  = source.tar.gz, input_{process}_{i}.txt
-        Output                = reports/{process}_{i}_$(Cluster)_$(Process).stdout
-        Error                 = reports/{process}_{i}_$(Cluster)_$(Process).stderr
-        Log                   = reports/{process}_{i}_$(Cluster)_$(Process).log
-        Queue
-        \n
-        ''')
+        batch_tmp.write(textwrap.dedent(f'''\
+            Executable            = {executable}
+            Arguments             = {i} input_{process}_{i}.txt
+            Transfer_Input_Files  = source.tar.gz, input_{process}_{i}.txt
+            Output                = reports/{process}_{i}_$(Cluster)_$(Process).stdout
+            Error                 = reports/{process}_{i}_$(Cluster)_$(Process).stderr
+            Log                   = reports/{process}_{i}_$(Cluster)_$(Process).log
+            Queue
+            \n
+        '''))
 
     batch_tmp.close()
 
@@ -78,6 +81,9 @@ def prepare_output(output_dir, prefix):
 
     stage_dir = Path(f'batch/{prefix}_{time_string}')
     stage_dir.mkdir(parents=True)
+
+    report_dir = stage_dir / Path('reports')
+    report_dir.mkdir()
 
     return output_dir, stage_dir
     
@@ -108,7 +114,8 @@ if __name__=='__main__':
             print('No files found for process {process}!')
             continue
 
-        cmd = prepare_submit(process, batches, output_dir, executable)
+        cmd = prepare_submit(process, batches, output_dir, executable.split('/')[-1])
         print(f'{cmd}')
+        subprocess.call(cmd, shell=True)
     
     os.chdir(current_dir)

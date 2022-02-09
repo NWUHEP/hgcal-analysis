@@ -154,6 +154,7 @@ if __name__=='__main__':
             gen_candidate = df_gen_event.iloc[ix_min]
             matched_features.append([dr[ix_min], gen_candidate['genpart_pt'], gen_candidate['genpart_pid']])
 
+        # save information about the per object gen matched quantities
         matched_features = np.array(matched_features)
         df_algo['matched_dr'] = matched_features[:, 0]
         df_algo['matched_pt'] = matched_features[:, 1]

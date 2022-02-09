@@ -24,8 +24,7 @@ fi
 unset __conda_setup
 # <<< conda initialize <<<
 
-python matching.py config/matching_cfg.py --job_id $jobid --input_file $infile
+python scripts/matching.py config/matching_cfg.py --job_id $jobid --input_file $infile
 
 status=$?
 exit $status
-
