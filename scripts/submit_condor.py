@@ -103,7 +103,7 @@ if __name__=='__main__':
     current_dir = os.getcwd()
     executable = config['executable']
     output_dir, stage_dir = prepare_output(config['output_dir'], config['prefix'])
-    os.system(f'tar czf {stage_dir}/source.tar.gz {current_dir} --exclude="*.hdf5" --exclude="batch" --exclude-vcs')
+    os.system(f'tar czf {stage_dir}/source.tar.gz {current_dir} --exclude="*.hdf5" --exclude="batch" --exclude="data" --exclude-vcs')
     os.system(f'cp {current_dir}/{executable} {stage_dir}/.')
     os.chdir(stage_dir)
 
