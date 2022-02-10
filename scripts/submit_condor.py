@@ -11,20 +11,33 @@ from pathlib import Path
 def get_current_time():
     now = datetime.datetime.now()
     currentTime = '{0:02d}{1:02d}{2:02d}_{3:02d}{4:02d}{5:02d}'.format(now.year, now.month, now.day, now.hour, now.minute, now.second)
+
     return currentTime
 
-def make_directory(file_path, clear=True):
-    if not file_path.exists():
-        os.system(f'mkdir -p {file_path}')
+def xrd_prefix(filepath):
+    if filepath.startswith('/eos/cms'):
+        prefix = 'root://eoscms.cern.ch/'
+    elif filepath.startswith('/eos/user'):
+        prefix = 'root://eosuser.cern.ch/'
+    elif filepath.startswith('/eos/uscms'):
+        prefix = 'root://cmseos.fnal.gov/'
+    elif filepath.startswith('/store/'):
+        # remote file
+        import socket
+        host = socket.getfqdn()
+        if 'cern.ch' in host:
+            prefix = 'root://xrootd-cms.infn.it//'
+        else:
+            prefix = 'root://cmseos.fnal.gov//'
+    filepath = f'{prefix}/{filepath}' 
 
-    if clear and len(os.listdir(file_path)) != 0:
-        os.system(f'rm -rf {file_path}/*')
+    return filepath
 
 def make_file_batches(process, batch_config):
     file_location = batch_config['location']
     files_per_job = batch_config['files_per_job']
 
-    file_list = [f'{file_location}/{f}' for f in os.listdir(file_location) if f[-4:] == 'root']
+    file_list = [xrd_prefix(f'{file_location}/{f}') for f in os.listdir(file_location) if f[-4:] == 'root']
     if len(file_list) == 0:
         return None
 
@@ -42,6 +55,7 @@ def prepare_submit(process, batches, output_dir, executable):
         Universe              = vanilla
         Should_Transfer_Files = YES
         WhenToTransferOutput  = ON_EXIT
+        transfer_output_files = ""
         want_graceful_removal = true
         Notification          = Never
         Requirements          = OpSys == "LINUX"&& (Arch != "DUMMY" )
@@ -60,7 +74,7 @@ def prepare_submit(process, batches, output_dir, executable):
         ### set output directory
         batch_tmp.write(textwrap.dedent(f'''\
             Executable            = {executable}
-            Arguments             = {i} input_{process}_{i}.txt
+            Arguments             = {i} input_{process}_{i}.txt {process} {output_dir}
             Transfer_Input_Files  = source.tar.gz, input_{process}_{i}.txt
             Output                = reports/{process}_{i}_$(Cluster)_$(Process).stdout
             Error                 = reports/{process}_{i}_$(Cluster)_$(Process).stderr
@@ -103,7 +117,7 @@ if __name__=='__main__':
     current_dir = os.getcwd()
     executable = config['executable']
     output_dir, stage_dir = prepare_output(config['output_dir'], config['prefix'])
-    os.system(f'tar czf {stage_dir}/source.tar.gz {current_dir} --exclude="*.hdf5" --exclude="batch" --exclude="data" --exclude-vcs')
+    os.system(f'tar czf {stage_dir}/source.tar.gz . --exclude="*.hdf5" --exclude="batch" --exclude="data" --exclude-vcs')
     os.system(f'cp {current_dir}/{executable} {stage_dir}/.')
     os.chdir(stage_dir)
 

@@ -41,5 +41,5 @@ branches_cl3d:
     - 'cl3d_layer90'
     - 'cl3d_ntc67'
     - 'cl3d_ntc90'
-output_destination: 'data/electrons'
+output_destination: 'data/'
 input_files: 'data/photons_nopu_ntuples.txt'

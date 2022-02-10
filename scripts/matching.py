@@ -46,6 +46,11 @@ if __name__=='__main__':
                         type=str, 
                         help='File with list of input files.  If this option is used, it will override the value provided in the configuration file.'
                         )
+    parser.add_argument('--output_dir', 
+                        default=None, 
+                        type=str, 
+                        help='Directory to write output file to.  If this option is used, it will override the value provided in the configuration file.'
+                        )
     args = parser.parse_args()
    
     # Load configuration file
@@ -71,13 +76,15 @@ if __name__=='__main__':
     if args.input_file:
         with open(args.input_file) as f:
             file_list = f.read().splitlines()
-
     else:
         if type(config['input_files']) == str:
             with open(config['input_files'], 'r') as f:
                 file_list = f.read().splitlines()
         else:
             file_list = config['input_files']
+
+    if args.output_dir:
+        output_dir = args.output_dir
 
     # read root files
     df_gen_list = []
