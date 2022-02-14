@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 
 import os
 import sys
@@ -8,10 +7,12 @@ import warnings
 from itertools import chain
 from pathlib import Path
 
+import pickle
 import yaml
 import awkward
 import uproot
 import numpy as np
+import h5py
 import pandas as pd
 from pandas.core.common import SettingWithCopyWarning
 
@@ -51,6 +52,10 @@ if __name__=='__main__':
                         type=str, 
                         help='Directory to write output file to.  If this option is used, it will override the value provided in the configuration file.'
                         )
+    parser.add_argument('--is_batch', 
+                        action='store_true',
+                        help='Use this if running with a (lpc condor?) batch system to enable xrd to open remote files.'
+                        )
     args = parser.parse_args()
    
     # Load configuration file
@@ -86,6 +91,10 @@ if __name__=='__main__':
     if args.output_dir:
         output_dir = args.output_dir
 
+    if args.is_batch: # having some issues with xrd on condor
+        uproot.open.defaults["xrootd_handler"] = uproot.MultithreadedXRootDSource
+        output_dir = 'data'
+
     # read root files
     df_gen_list = []
     dict_algos = {fe:[] for fe in frontend_algos}
@@ -107,7 +116,7 @@ if __name__=='__main__':
             layer_pt = list(chain.from_iterable(algo_tree.arrays(['cl3d_layer_pt'])['cl3d_layer_pt'].tolist()))
             df_layer_pt = pd.DataFrame(layer_pt, columns=layer_labels, index=df_algo.index)
             df_algo = pd.concat([df_algo, df_layer_pt], axis=1)
-           
+          
             dict_algos[fe].append(df_algo)
 
     # concatenate dataframes for each algorithm after running over all files
@@ -117,9 +126,10 @@ if __name__=='__main__':
     set_indices(df_gen)
     df_gen_pos, df_gen_neg = [df for _, df in df_gen.groupby(df_gen['genpart_exeta'] < 0)]
 
-    output_name = f'{output_dir}/output_{args.job_id}.hdf5'
-    store = pd.HDFStore(output_name, mode='w')
-    output_dict = {}
+    output_name = f'{output_dir}/output_{args.job_id}.pkl'
+    outfile = open(output_name, 'wb')
+    #store = pd.HDFStore(output_name, mode='w')
+    output_dict = dict(gen=df_gen)
     for algo_name, dfs in dict_algos.items():
         df_algo = pd.concat(dfs)
         set_indices(df_algo)
@@ -173,8 +183,12 @@ if __name__=='__main__':
             df_algo.query(f'delta_r <= {dr_threshold} and delta_r != -1', inplace=True)
     
         output_dict[algo_name] = df_algo
-        store[algo_name] = df_algo
+        #store[algo_name] = df_algo
 
-    ##save files to savedir in HDF
-    store['gen'] = df_gen
-    store.close()
+    ###save files to savedir in HDF (temporarily use pickle files because of problems with hdf5 on condor)
+    pickle.dump(output_dict, outfile)
+    outfile.close()
+    print(f'Writing output to {output_name}')
+
+    #store['gen'] = df_gen
+    #store.close()

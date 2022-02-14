@@ -3,7 +3,6 @@ import os
 import subprocess
 import datetime
 import argparse
-import optparse
 import textwrap
 import yaml
 from pathlib import Path
@@ -55,15 +54,16 @@ def prepare_submit(process, batches, output_dir, executable):
         Universe              = vanilla
         Should_Transfer_Files = YES
         WhenToTransferOutput  = ON_EXIT
-        transfer_output_files = ""
         want_graceful_removal = true
+        transfer_output_files = ""
         Notification          = Never
         Requirements          = OpSys == "LINUX"&& (Arch != "DUMMY" )
-        request_disk          = 2000000
         request_memory        = 4096
         \n
     '''))
+    #request_disk          = 2000000
 
+    output_dir = xrd_prefix(str(output_dir))
     for i, batch in enumerate(batches):
 
         ## make file with list of inputs ntuples for the analyzer

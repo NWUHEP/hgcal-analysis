@@ -12,17 +12,18 @@ echo $infile
 echo $process
 echo $output_dir
 
+# setup local environment
 tar xzf source.tar.gz
 rm source.tar.gz
+source /cvmfs/cms.cern.ch/cmsset_default.sh
 source $LCG/setup.sh
 source $NAME/bin/activate
 
 mkdir data
-ls -lh
-python scripts/matching.py --help
-#python scripts/matching.py --config config/matching_cfg.yaml 
-#python scripts/matching.py --config config/matching_cfg.yaml --job_id ${jobid} --input_file ${infile} --output_dir data
-#xrdcp -f data/output_${jobid}.hdf5 ${output_dir}/output_${process}_${jobid}.hdf5
+python -V
+#mv ${infile} data/photons_nopu_ntuples.txt
+python scripts/matching.py --config config/matching_cfg.yaml --job_id ${jobid} --input_file ${infile} --is_batch
+xrdcp -f data/output_${jobid}.pkl ${output_dir}/output_${process}_${jobid}.pkl
 
 status=$?
 exit $status
