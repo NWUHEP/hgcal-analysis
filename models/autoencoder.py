@@ -1,7 +1,5 @@
-
-
-def regularized_loss():
-    pass
+import torch
+from torch import nn
 
 class AutoEncoder(nn.Module):
     def __init__(self, input_dim, output_dim):
