@@ -1,45 +1,95 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
+from utils.geometry_tools import wafer_mask, conv_mask
+
+class Mask(nn.Module):
+    def __init__(self, mask_array):
+        super(Mask, self).__init__()
+        self.weight = torch.nn.Parameter(data=torch.tensor(mask_array), requires_grad=True)
+
+    def forward(self, x):
+        pass
+
 
 class AutoEncoderWafer(nn.Module):
-    def __init__(self, input_dim, output_dim):
-        super(AutoEncoder, self).__init__()
-        pooled_dim    = input_dim # n_conv_output / pooling_size
-        self.conv2d_1 = nn.Conv2d(1, 8, kernel_size=3, padding=1)
+    '''
+    Autoencoder for a single HGCal wafer with the following 8x8 encoding:
+
+    1111----
+    21111---
+    221111--
+    2221111-
+    22223333
+    -2223333
+    --223333
+    ---23333
+
+    Where 1, 2, 3 indicate entries from one of the three HGCROC "faces".
+    Need to write custom 3x3 convolutional kernels that properly encoded
+    nearest neigbors:
+
+    ab-
+    cde
+    -fg
+
+    '''
+    def __init__(self, output_dim, device):
+        super(AutoEncoderWafer, self).__init__()
+        self.conv2d_1 = nn.Conv2d(1, 8, kernel_size=3, padding=1, bias=False)
         self.act_1    = nn.ReLU()
         self.pool_1   = nn.MaxPool2d(2)
-        self.conv2d_2 = nn.Conv2d(8, 8, kernel_size=2, padding=0, stride=2)
-        self.act_2    = nn.ReLU()
-        self.pool_2   = nn.MaxPool2d(2)
-        self.bnorm1 = nn.BatchNorm2d(num_features=8)
+        self.bnorm_1  = nn.BatchNorm2d(num_features=8)
+        #self.conv2d_2 = nn.Conv2d(8, 8, kernel_size=2, padding=0, stride=2)
+        #self.act_2    = nn.ReLU()
+        #self.pool_2   = nn.MaxPool2d(2)
         self.encode_dense = nn.Sequential(
-            nn.Linear(8 * 8 * 8, 128),
-            nn.ReLU(),
-            nn.Linear(128, 64),
+            nn.Linear(8 * 8 * 8, 64),
             nn.ReLU(),
             nn.Linear(64, 32),
-            nn.ReLU()
+            nn.ReLU(),
+            #nn.Linear(128, 64),
+            #nn.ReLU(),
+            #nn.Linear(32, 16),
+            #nn.ReLU()
             )
         self.decode_dense = nn.Sequential(
             nn.Linear(32, 64),
             nn.ReLU(),
-            nn.Linear(64, 128),
-            nn.ReLU(),
-            nn.Linear(128, output_dim),
+            nn.Linear(64, output_dim),
             nn.ReLU()
+            #nn.Linear(32, 64),
+            #nn.ReLU(),
+            #nn.Linear(64, 128),
+            #nn.ReLU(),
         )
+        #self.t_conv_1 = nn.ConvTranspose2d(
         #self.upsample_1 = nn.Upsample(scale_factor=2, mode='bilinear')
         #self.act_3 = nn.ReLU()
+
+        #self.wafer_mask = torch.tensor(wafer_mask).view(-1, 8, 8)
+        self.wafer_mask = nn.Parameter(torch.tensor(wafer_mask).view(-1, 8, 8), requires_grad=False)
+        self.conv_mask  = nn.Parameter(torch.tensor(conv_mask).view(-1, 3, 3), requires_grad=False)
 
     def encode(self, x):
         '''
         Takes image data and returns the encoded values
         '''
-        x = x.unsqueeze(1) # adds channel dimension for the case that there is one channel per image
+
+        # adds channel dimension for the case that there is one channel per image
+        x = x.unsqueeze(1) 
+
+        # mask out components of convolution which don't respect hex geometry
+        #self.conv2d_1.weight = self.conv_mask
+        #x = F.conv2d(x, weight=self.wafer_mask)
         x = self.conv2d_1(x) # preserves shape
+
+        # mask out nonphysics entries
         x = self.act_1(x)
-        x = self.pool_1(x) # reduces x, y by 2
-        x = self.bnorm1(x)
+        #x = self.wafer_mask*self.act_1(x)
+
+        #x = self.pool_1(x) # reduces x, y by 2
+        x = self.bnorm_1(x)
         #x = self.conv2d_2(x) # reduces by 2
         #x = self.act_2(x)
         #x = self.pool_2(x)
@@ -56,7 +106,7 @@ class AutoEncoderWafer(nn.Module):
         #x = x.view(-1, 1, 8, 8)
         #x = self.upsample_1(x)
         #x = self.act_3(x)
-        x = x.view(-1, 16, 16)
+        x = x.view(-1, 8, 8)
         return x
 
     def forward(self, x):
@@ -70,7 +120,6 @@ class AutoEncoderWafer(nn.Module):
 class AutoEncoderToy(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(AutoEncoder, self).__init__()
-        pooled_dim    = input_dim # n_conv_output / pooling_size
         self.conv2d_1 = nn.Conv2d(1, 8, kernel_size=3, padding=1)
         self.act_1    = nn.ReLU()
         self.pool_1   = nn.MaxPool2d(2)

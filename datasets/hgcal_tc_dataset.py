@@ -1,4 +1,6 @@
 
+import pickle # switch to something else (npz or hdf5 probably)
+import numpy as np
 import torch
 from torch.utils.data import Dataset
 
@@ -8,15 +10,18 @@ class HGCalTCModuleDataset(Dataset):
     the first prototype of the econ dataset and will not include layer of wafer
     location information.
     '''
-    def __init__(self, input_files, targets, transform=None):
+    def __init__(self, input_files, targets=None, transform=None):
         self.input_files = input_files
+
+        # add something meaningful for these
+        self.targets     = targets
         self.transform   = transform
 
         # unpack the data into 8x8 tensors
-        self.wafers = unpack_wafers()
+        self.wafer_data = self.unpack_wafer_data()
 
     def __getitem__(self, index):
-        x = self.data[index]
+        x = self.wafer_data[index]
         #y = self.targets[index]
 
         if self.transform:
@@ -25,7 +30,7 @@ class HGCalTCModuleDataset(Dataset):
         return x#, y
 
     def __len__(self):
-        return len(self.data)
+        return len(self.wafer_data)
 
     def unpack_wafer_data(self):
         wafers = []
@@ -34,6 +39,8 @@ class HGCalTCModuleDataset(Dataset):
             data = pickle.load(f)
             for (event, zside), event_data in data.items():
                 for (waferu, waferv), tc_stack in event_data.items():
-                    wafers.append(tc_stack)
+                    norm = tc_stack.sum()
+                    if norm > 10.:
+                        wafers.append(torch.tensor(tc_stack/norm))
 
-        self.data = np.vstack(wafers)
+        return torch.vstack(wafers).type(torch.FloatTensor)
