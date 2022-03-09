@@ -3,14 +3,6 @@ from torch import nn
 import torch.nn.functional as F
 from utils.geometry_tools import wafer_mask, conv_mask
 
-class Mask(nn.Module):
-    def __init__(self, mask_array):
-        super(Mask, self).__init__()
-        self.weight = torch.nn.Parameter(data=torch.tensor(mask_array), requires_grad=True)
-
-    def forward(self, x):
-        pass
-
 
 class AutoEncoderWafer(nn.Module):
     '''
@@ -36,9 +28,9 @@ class AutoEncoderWafer(nn.Module):
     '''
     def __init__(self, output_dim, device):
         super(AutoEncoderWafer, self).__init__()
-        self.conv2d_1 = nn.Conv2d(1, 8, kernel_size=3, padding=1, bias=False)
+        self.conv2d_1 = nn.Conv2d(1, 8, kernel_size=3, padding=1, stride=1, bias=False)
         self.act_1    = nn.ReLU()
-        self.pool_1   = nn.MaxPool2d(2)
+        #self.pool_1   = nn.MaxPool2d(2)
         self.bnorm_1  = nn.BatchNorm2d(num_features=8)
         #self.conv2d_2 = nn.Conv2d(8, 8, kernel_size=2, padding=0, stride=2)
         #self.act_2    = nn.ReLU()
@@ -48,28 +40,36 @@ class AutoEncoderWafer(nn.Module):
             nn.ReLU(),
             nn.Linear(64, 32),
             nn.ReLU(),
-            #nn.Linear(128, 64),
-            #nn.ReLU(),
-            #nn.Linear(32, 16),
-            #nn.ReLU()
             )
         self.decode_dense = nn.Sequential(
             nn.Linear(32, 64),
             nn.ReLU(),
             nn.Linear(64, output_dim),
             nn.ReLU()
-            #nn.Linear(32, 64),
-            #nn.ReLU(),
-            #nn.Linear(64, 128),
-            #nn.ReLU(),
         )
         #self.t_conv_1 = nn.ConvTranspose2d(
         #self.upsample_1 = nn.Upsample(scale_factor=2, mode='bilinear')
         #self.act_3 = nn.ReLU()
 
-        #self.wafer_mask = torch.tensor(wafer_mask).view(-1, 8, 8)
-        self.wafer_mask = nn.Parameter(torch.tensor(wafer_mask).view(-1, 8, 8), requires_grad=False)
-        self.conv_mask  = nn.Parameter(torch.tensor(conv_mask).view(-1, 3, 3), requires_grad=False)
+        # creates mask for hexagonal convolution
+        conv_mask = torch.ones(8, 1, 3, 3)
+        conv_mask[:, :, 2, 0] = 0
+        conv_mask[:, :, 0, 2] = 0
+        self.register_buffer('weight_update_mask', conv_mask.bool())
+        self.register_buffer('fixed_weights', torch.zeros(8, 1, 3, 3))
+
+        self.conv2d_1.weight = nn.Parameter(conv_mask)
+        #self.conv_mask  = nn.Parameter(torch.tensor(wafer_mask).view(-1, 3, 3), requires_grad=False)
+
+    def masked_conv2d(self, x, layer):
+        weights = layer.weight
+        bias    = layer.bias 
+
+        weights = torch.where(self.weight_update_mask, weights, self.fixed_weights)
+        if layer.bias:
+            bias = torch.where(self.weight_update_mask, bias, self.fixed_weights)
+        return F.conv2d(x, weights, bias, layer.stride, layer.padding)
+
 
     def encode(self, x):
         '''
@@ -79,14 +79,12 @@ class AutoEncoderWafer(nn.Module):
         # adds channel dimension for the case that there is one channel per image
         x = x.unsqueeze(1) 
 
-        # mask out components of convolution which don't respect hex geometry
-        #self.conv2d_1.weight = self.conv_mask
         #x = F.conv2d(x, weight=self.wafer_mask)
-        x = self.conv2d_1(x) # preserves shape
+        #x = self.conv2d_1(x) # preserves shape
+        x = self.masked_conv2d(x, self.conv2d_1)
 
         # mask out nonphysics entries
         x = self.act_1(x)
-        #x = self.wafer_mask*self.act_1(x)
 
         #x = self.pool_1(x) # reduces x, y by 2
         x = self.bnorm_1(x)
@@ -113,6 +111,7 @@ class AutoEncoderWafer(nn.Module):
         '''
         Carries out the full encoding+decoding to predict x'
         '''
+        #self.conv2d_1.weight = nn.Parameter(torch.where(self.weight_update_mask, self.conv2d_1.weight, self.fixed_weights))
         h = self.encode(x)
         x = self.decode(h)
         return x
