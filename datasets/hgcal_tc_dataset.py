@@ -39,8 +39,11 @@ class HGCalTCModuleDataset(Dataset):
             data = pickle.load(f)
             for (event, zside), event_data in data.items():
                 for (waferu, waferv), tc_stack in event_data.items():
-                    norm = tc_stack.sum()
-                    if norm > 10.:
-                        wafers.append(torch.tensor(tc_stack/norm))
+                    wafers.append(tc_stack)
 
-        return torch.vstack(wafers).type(torch.FloatTensor)
+        # temporary: stack all wafers and remove empty wafers (those should be trained on though)
+        wafers = np.vstack(wafers)
+        wafers_sums = wafers.sum(axis=(1, 2))
+        wafers = wafers[wafers_sums > 20]
+
+        return torch.tensor(wafers).float()
