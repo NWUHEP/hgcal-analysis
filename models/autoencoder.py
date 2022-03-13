@@ -3,7 +3,6 @@ from torch import nn
 import torch.nn.functional as F
 from utils.geometry_tools import wafer_mask, conv_mask
 
-
 class AutoEncoderWafer(nn.Module):
     '''
     Autoencoder for a single HGCal wafer with the following 8x8 encoding:
@@ -67,18 +66,6 @@ class AutoEncoderWafer(nn.Module):
         #self.conv2d_1.weight = nn.Parameter(conv_mask)
         #self.conv_mask  = nn.Parameter(torch.tensor(wafer_mask).view(-1, 3, 3), requires_grad=False)
 
-    def masked_conv2d(self, x, layer, do_inv=False):
-        weights = layer.weight
-        bias    = layer.bias 
-
-        weights = torch.where(self.weight_update_mask, weights, self.fixed_weights)
-        if layer.bias:
-            bias = torch.where(self.weight_update_mask, bias, self.fixed_weights)
-
-        if do_inv:
-            return F.conv_transpose2d(x, weights, bias, layer.stride, layer.padding)
-        else:
-            return F.conv2d(x, weights, bias, layer.stride, layer.padding)
 
     def encode(self, x):
         '''
@@ -134,25 +121,43 @@ class AutoEncoderWafer(nn.Module):
 class Autoencoder(nn.Module):
     def __init__(self):
         super(Autoencoder, self).__init__()
-        self.encoder = nn.Sequential( # like the Composition layer you built
-            nn.Conv2d(1, 8, 3, stride=2, padding=1),
+        self.conv2d_enc = nn.Sequential( # like the Composition layer you built
+            nn.Conv2d(1, 8, 3, stride=1, padding=1),
             nn.ReLU(),
-            nn.Conv2d(8, 1, 3, stride=1, padding=1),
-            nn.ReLU(),
-            #nn.Conv2d(32, 64, 2)
-        )
-        self.decoder = nn.Sequential(
-            #nn.ConvTranspose2d(64, 32, 2),
+            nn.MaxPool2d(2)
+            #nn.Conv2d(8, 1, 3, stride=1, padding=1),
             #nn.ReLU(),
-            nn.ConvTranspose2d(1, 8, 3, stride=1, padding=1),
-            nn.ReLU(),
+            )
+        self.linear_enc = nn.Sequential(
+            nn.Linear(128, 16),
+            nn.ReLU()
+            )
+        self.linear_dec = nn.Sequential(
+            nn.Linear(16, 128),
+            nn.ReLU()
+            )
+        self.tconv2d_dec = nn.Sequential(
+            #nn.ConvTranspose2d(1, 8, 3, stride=1, padding=1),
+            #nn.ReLU(),
             nn.ConvTranspose2d(8, 1, 3, stride=2, padding=1, output_padding=1),
             nn.ReLU()
         )
 
+    def encode(self, x):
+        x = self.conv2d_enc(x)
+        x = x.flatten(1)
+        x = self.linear_enc(x)
+        return x
+
+    def decode(self, x):
+        x = self.linear_dec(x)
+        x = x.view(-1, 8, 4, 4)
+        x = self.tconv2d_dec(x)
+        return x
+
     def forward(self, x):
-        x = self.encoder(x)
-        x = self.decoder(x)
+        x = self.encode(x)
+        x = self.decode(x)
         return x
 
 class AutoEncoderToy(nn.Module):
