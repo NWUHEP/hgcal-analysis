@@ -31,30 +31,31 @@ class AutoEncoderWafer(nn.Module):
         # reusable layers
         self.pool = nn.MaxPool2d(2)
 
-        # encoding layers
-        self.conv2d_1 = nn.Conv2d(1, 8, kernel_size=3, padding=1, stride=1, bias=False)
-        #self.conv2d_2 = nn.Conv2d(8, 1, kernel_size=2, padding=0, stride=1, bias=True)
+        # encoder layers
+        self.conv2d_enc = nn.Sequential( 
+            nn.Conv2d(1, 8, 3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.BatchNorm2d()
+            #nn.Conv2d(8, 1, 3, stride=1, padding=1),
+            #nn.ReLU(),
+            )
+        self.linear_enc = nn.Sequential(
+            nn.Linear(128, 16),
+            nn.ReLU()
+            )
 
-        #self.bnorm_1  = nn.BatchNorm2d(num_features=8)
-        #self.conv2d_2 = nn.Conv2d(8, 8, kernel_size=2, padding=0, stride=2)
-        #self.act_2    = nn.ReLU()
-        #self.pool_2   = nn.MaxPool2d(2)
-        #self.encode_dense = nn.Sequential(
-        #    nn.Linear(8 * 8 * 8, 64),
-        #    nn.ReLU(),
-        #    nn.Linear(64, 32),
-        #    nn.ReLU(),
-        #    )
-
-        # decoding layers
-        #self.decode_dense = nn.Sequential(
-        #    nn.Linear(32, 64),
-        #    nn.ReLU(),
-        #    nn.Linear(64, output_dim),
-        #    nn.ReLU()
-        #)
-        #self.t_conv2d_1 = nn.ConvTranspose2d(1, 8, kernel_size=2, padding=0, stride=2)
-        self.t_conv2d_2 = nn.ConvTranspose2d(8, 1, kernel_size=3, padding=2, stride=1, output_padding=0)
+        # decoder layers
+        self.linear_dec = nn.Sequential(
+            nn.Linear(16, 128),
+            nn.ReLU()
+            )
+        self.tconv2d_dec = nn.Sequential(
+            #nn.ConvTranspose2d(1, 8, 3, stride=1, padding=1),
+            #nn.ReLU(),
+            nn.ConvTranspose2d(8, 1, 3, stride=2, padding=1, output_padding=1),
+            nn.ReLU()
+        )
 
         # create mask for hexagonal convolutions
         conv_mask = torch.ones(8, 1, 3, 3)
@@ -63,59 +64,35 @@ class AutoEncoderWafer(nn.Module):
         self.register_buffer('weight_update_mask', conv_mask.bool())
         self.register_buffer('fixed_weights', torch.zeros(8, 1, 3, 3))
 
-        #self.conv2d_1.weight = nn.Parameter(conv_mask)
-        #self.conv_mask  = nn.Parameter(torch.tensor(wafer_mask).view(-1, 3, 3), requires_grad=False)
-
-
     def encode(self, x):
-        '''
-        Takes image data and returns the encoded values
-        '''
-
-        # adds channel dimension for the case that there is one channel per image
-        x = x.unsqueeze(1) 
-
-        # carry out convolutions with hex masking
+        
         x = self.masked_conv2d(x, self.conv2d_1)
-        x = F.relu(x)
-        #x = self.pool(x) # reduces x, y by 2
-        #x = self.conv2d_2(x)
-        #x = F.relu(x)
-
-        #x = self.bnorm_1(x)
-        #x = self.conv2d_2(x) # reduces by 2
-        #x = self.act_2(x)
-        #x = self.pool_2(x)
-        #x = x.view(-1, 8 * 8 * 8)
-        #x = self.encode_dense(x)
-
+        #self.conv2d_1.weight = nn.Parameter(torch.where(self.weight_update_mask, self.conv2d_1.weight, self.fixed_weights))
+        x = self.conv2d_enc(x)
+        x = x.flatten(1)
+        x = self.linear_enc(x)
         return x
 
-    def decode(self, h):
-        '''
-        Takes encoded input (h) and returns decoded output x'
-        '''
-        #x = self.decode_dense(h)
-        #x = x.view(-1, 1, 8, 8)
-        #x = self.upsample_1(x)
-        #x = self.act_3(x)
-        #x = x.view(-1, 8, 8)
+    def decode(self, x):
+        x = self.linear_dec(x)
+        x = x.view(-1, 8, 4, 4)
+        x = self.tconv2d_dec(x)
+        return x
 
-        x = self.t_conv2d_1(h)
-        x = F.relu(x)
-        #x = self.t_conv2d_2(x)
-        #x = torch.relu(x)
-        x = x.squeeze()
-
+    def forward(self, x):
+        x = self.encode(x)
+        x = self.decode(x)
         return x
 
     def forward(self, x):
         '''
-        Carries out the full encoding+decoding to predict x'
+        Carries out the full encoding + decoding to predict x'
         '''
-        #self.conv2d_1.weight = nn.Parameter(torch.where(self.weight_update_mask, self.conv2d_1.weight, self.fixed_weights))
+        e_total = x.sum()
         h = self.encode(x)
         x = self.decode(h)
+
+        x *= e_total/x.sum()
         return x
 
 class Autoencoder(nn.Module):
