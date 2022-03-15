@@ -25,30 +25,35 @@ class AutoEncoderWafer(nn.Module):
     -fg
 
     '''
-    def __init__(self, output_dim, device):
+    def __init__(self):
         super(AutoEncoderWafer, self).__init__()
 
         # reusable layers
         self.pool = nn.MaxPool2d(2)
 
         # encoder layers
+        #self.conv2d = nn.Conv2d(1, 8, 3, stride=1, padding=1)
         self.conv2d_enc = nn.Sequential( 
             nn.Conv2d(1, 8, 3, stride=1, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(2),
-            nn.BatchNorm2d()
+            #nn.BatchNorm2d(8)
             #nn.Conv2d(8, 1, 3, stride=1, padding=1),
             #nn.ReLU(),
             )
         self.linear_enc = nn.Sequential(
             nn.Linear(128, 16),
-            nn.ReLU()
+            nn.ReLU(),
+            #nn.Linear(64, 16),
+            #nn.ReLU()
             )
 
         # decoder layers
         self.linear_dec = nn.Sequential(
             nn.Linear(16, 128),
-            nn.ReLU()
+            nn.ReLU(),
+            #nn.Linear(64, 128),
+            #nn.ReLU(),
             )
         self.tconv2d_dec = nn.Sequential(
             #nn.ConvTranspose2d(1, 8, 3, stride=1, padding=1),
@@ -57,16 +62,34 @@ class AutoEncoderWafer(nn.Module):
             nn.ReLU()
         )
 
-        # create mask for hexagonal convolutions
+        # mask for hexagonal convolutions
         conv_mask = torch.ones(8, 1, 3, 3)
         conv_mask[:, :, 2, 0] = 0
         conv_mask[:, :, 0, 2] = 0
-        self.register_buffer('weight_update_mask', conv_mask.bool())
-        self.register_buffer('fixed_weights', torch.zeros(8, 1, 3, 3))
+        self.register_buffer('conv2d_weight_update_mask', conv_mask.bool())
+        self.register_buffer('conv2d fixed_weights', torch.zeros(8, 1, 3, 3))
+
+        # mask for wafers
+        #conv_mask = torch.ones(8, 1, 8, 8)
+        #conv_mask[:, :, 0, 4:] = 0
+        #conv_mask[:, :, 1, 5:] = 0
+        #conv_mask[:, :, 6, 7:] = 0
+        #conv_mask[:, :, 7, 8] = 0
+        #self.register_buffer('conv2d_weight_update_mask', conv_mask.bool())
+        #self.register_buffer('conv2d fixed_weights', torch.zeros(8, 1, 3, 3))
+
+    def masked_conv2d(self, x, layer):
+        weights = layer.weight
+        bias    = layer.bias 
+
+        weights = torch.where(self.weight_update_mask, weights, self.fixed_weights)
+        if layer.bias:
+            bias = torch.where(self.weight_update_mask, bias, self.fixed_weights)
+        return F.conv2d(x, weights, bias, layer.stride, layer.padding)
 
     def encode(self, x):
         
-        x = self.masked_conv2d(x, self.conv2d_1)
+        #x = self.masked_conv2d(x, self.conv2d_1)
         #self.conv2d_1.weight = nn.Parameter(torch.where(self.weight_update_mask, self.conv2d_1.weight, self.fixed_weights))
         x = self.conv2d_enc(x)
         x = x.flatten(1)
@@ -88,11 +111,10 @@ class AutoEncoderWafer(nn.Module):
         '''
         Carries out the full encoding + decoding to predict x'
         '''
-        e_total = x.sum()
+        #e_total = x.sum(dim=[1, 2, 3])
         h = self.encode(x)
         x = self.decode(h)
-
-        x *= e_total/x.sum()
+        #x *= e_total/x.sum(dim=[1, 2, 3])
         return x
 
 class Autoencoder(nn.Module):
@@ -101,7 +123,8 @@ class Autoencoder(nn.Module):
         self.conv2d_enc = nn.Sequential( # like the Composition layer you built
             nn.Conv2d(1, 8, 3, stride=1, padding=1),
             nn.ReLU(),
-            nn.MaxPool2d(2)
+            nn.MaxPool2d(2),
+            nn.BatchNorm2d(8),
             #nn.Conv2d(8, 1, 3, stride=1, padding=1),
             #nn.ReLU(),
             )
@@ -146,7 +169,7 @@ class AutoEncoderToy(nn.Module):
         self.conv2d_2 = nn.Conv2d(8, 8, kernel_size=2, padding=0, stride=2)
         self.act_2    = nn.ReLU()
         self.pool_2   = nn.MaxPool2d(2)
-        self.bnorm1 = nn.BatchNorm2d(num_features=8)
+        self.bnorm1   =   nn.BatchNorm2d(num_features=8)
         self.encode_dense = nn.Sequential(
             nn.Linear(8 * 8 * 8, 128),
             nn.ReLU(),
