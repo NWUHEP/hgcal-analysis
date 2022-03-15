@@ -10,7 +10,7 @@ class HGCalTCModuleDataset(Dataset):
     the first prototype of the econ dataset and will not include layer of wafer
     location information.
     '''
-    def __init__(self, input_files, targets=None, transform=None):
+    def __init__(self, input_files, do_stacks=False, targets=None, transform=None):
         self.input_files = input_files
 
         # add something meaningful for these
@@ -18,7 +18,7 @@ class HGCalTCModuleDataset(Dataset):
         self.transform   = transform
 
         # unpack the data into 8x8 tensors
-        self.wafer_data = self.unpack_wafer_data()
+        self.wafer_data = self.unpack_wafer_data(do_stacks)
 
     def __getitem__(self, index):
         x = self.wafer_data[index]
@@ -32,7 +32,7 @@ class HGCalTCModuleDataset(Dataset):
     def __len__(self):
         return len(self.wafer_data)
 
-    def unpack_wafer_data(self):
+    def unpack_wafer_data(self, do_stacks):
         wafers = []
         for filename in self.input_files:
             f = open(filename, 'rb')
@@ -42,8 +42,9 @@ class HGCalTCModuleDataset(Dataset):
                     wafers.append(tc_stack)
 
         # temporary: stack all wafers and remove empty wafers (those should be trained on though)
-        wafers = np.vstack(wafers)
-        wafers_sums = wafers.sum(axis=(1, 2))
-        wafers = wafers[wafers_sums > 20]
+        if not do_stacks:
+            wafers = np.vstack(wafers)
+            wafers_sums = wafers.sum(axis=(1, 2))
+            wafers = wafers[wafers_sums > 10]
 
         return torch.tensor(wafers).float()

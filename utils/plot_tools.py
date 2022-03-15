@@ -144,11 +144,18 @@ def draw_hgcal_layer(ax,
 
     return ax
 
-def draw_single_module(ax, xy_offset=(0, 0), hex_radius=gt.hgcal_hex_radius):
+def draw_single_module(ax, 
+        uv=(0, 0), 
+        hex_radius=gt.hgcal_hex_radius,
+        include_tc_index=False
+        ):
 
-    x, y = xy_offset
+    # calculate offset in cartesian coordinates
+    xy_offset = gt.hex_to_cartesian(uv)
+    x_offset, y_offset = xy_offset
+
     # draw hexegonal grid
-    poly = RegularPolygon((x, y),
+    poly = RegularPolygon((x_offset, y_offset),
                          numVertices=6,
                          radius=hex_radius,
                          orientation=np.radians(0),
@@ -161,22 +168,33 @@ def draw_single_module(ax, xy_offset=(0, 0), hex_radius=gt.hgcal_hex_radius):
 
     # Draw HGROC boundaries
     angle = np.pi/6
-    x1 = x + np.array([0., 0, hex_radius*np.cos(angle), hex_radius*np.cos(angle)])
-    y1 = y + np.array([0., hex_radius, hex_radius*np.sin(angle), -hex_radius*np.sin(angle)])
+    x1 = x_offset + np.array([0., 0, hex_radius*np.cos(angle), hex_radius*np.cos(angle)])
+    y1 = y_offset + np.array([0., hex_radius, hex_radius*np.sin(angle), -hex_radius*np.sin(angle)])
     ax.add_patch(Polygon(xy=list(zip(x1, y1)), fill=False))
 
-    x2 = x + np.array([0., hex_radius*np.cos(angle), 0., -hex_radius*np.cos(angle)])
-    y2 = y + np.array([0., -hex_radius*np.sin(angle), -hex_radius, -hex_radius*np.sin(angle)])
+    x2 = x_offset + np.array([0., hex_radius*np.cos(angle), 0., -hex_radius*np.cos(angle)])
+    y2 = y_offset + np.array([0., -hex_radius*np.sin(angle), -hex_radius, -hex_radius*np.sin(angle)])
     ax.add_patch(Polygon(xy=list(zip(x2, y2)), fill=False))
 
-    x3 = x + np.array([0., -hex_radius*np.cos(angle), -hex_radius*np.cos(angle), 0.])
-    y3 = y + np.array([0., -hex_radius*np.sin(angle), hex_radius*np.sin(angle), hex_radius])
+    x3 = x_offset + np.array([0., -hex_radius*np.cos(angle), -hex_radius*np.cos(angle), 0.])
+    y3 = y_offset + np.array([0., -hex_radius*np.sin(angle), hex_radius*np.sin(angle), hex_radius])
     ax.add_patch(Polygon(xy=list(zip(x3, y3)), fill=False))
 
-    ax.set_xlim(x - 9, x + 9)
-    ax.set_ylim(y - 10, y + 10)
-    ax.set_xlabel('X [cm]')
-    ax.set_ylabel('Y [cm]')
+    #ax.set_xlim(x_offset - 9, x_offset + 9)
+    #ax.set_ylim(y_offset - 10, y_offset + 10)
+    #ax.set_xlabel('X [cm]')
+    #ax.set_ylabel('Y [cm]')
+
+    if include_tc_index:
+        df_uv_to_xy = pd.read_csv('data/tc_uv_to_xy.csv').set_index(['tc_cellu', 'tc_cellv'])
+        
+        for (u, v), (x, y) in df_uv_to_xy.iterrows():
+            u, v = int(u), int(v)
+            x, y = x - x_offset, y - y_offset
+            ax.text(x, y, f'({u}, {v})', ha='center', va='center', size=14)
 
     return ax
+
+def animate_wafer_neighbor_shower(ax, df_event,):
+    pass
 

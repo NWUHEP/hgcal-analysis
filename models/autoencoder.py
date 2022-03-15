@@ -3,6 +3,19 @@ from torch import nn
 import torch.nn.functional as F
 from utils.geometry_tools import wafer_mask, conv_mask
 
+class AutoEncoderStack(nn.Module):
+    '''
+    Extension of AutoEncoderWafer to train all available layers of HGCal
+    simultaneously.  The encoder encodes each wafer in the stack independently
+    while the decoder builds wafers in neighboring layers using 3d transposed
+    convolutions.
+    '''
+
+    def __init__(self):
+        super(nn.Module, self).__init__(n_layers)
+        pass
+
+
 class AutoEncoderWafer(nn.Module):
     '''
     Autoencoder for a single HGCal wafer with the following 8x8 encoding:
@@ -32,9 +45,9 @@ class AutoEncoderWafer(nn.Module):
         self.pool = nn.MaxPool2d(2)
 
         # encoder layers
-        #self.conv2d = nn.Conv2d(1, 8, 3, stride=1, padding=1)
+        self.conv2d = nn.Conv2d(1, 8, 3, stride=1, padding=1)
         self.conv2d_enc = nn.Sequential( 
-            nn.Conv2d(1, 8, 3, stride=1, padding=1),
+            #nn.Conv2d(1, 8, 3, stride=1, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(2),
             #nn.BatchNorm2d(8)
@@ -42,18 +55,18 @@ class AutoEncoderWafer(nn.Module):
             #nn.ReLU(),
             )
         self.linear_enc = nn.Sequential(
-            nn.Linear(128, 64),
+            nn.Linear(128, 16),
             nn.ReLU(),
-            nn.Linear(64, 16),
-            nn.ReLU()
+            #nn.Linear(64, 16),
+            #nn.ReLU()
             )
 
         # decoder layers
         self.linear_dec = nn.Sequential(
-            nn.Linear(16, 64),
+            nn.Linear(16, 128),
             nn.ReLU(),
-            nn.Linear(64, 128),
-            nn.ReLU(),
+            #nn.Linear(64, 128),
+            #nn.ReLU(),
             )
         self.tconv2d_dec = nn.Sequential(
             #nn.ConvTranspose2d(1, 8, 3, stride=1, padding=1),
@@ -79,18 +92,17 @@ class AutoEncoderWafer(nn.Module):
         #self.register_buffer('conv2d fixed_weights', torch.zeros(8, 1, 3, 3))
 
     def masked_conv2d(self, x, layer):
-        weights = layer.weight
+        weight = layer.weight
         bias    = layer.bias 
 
-        weights = torch.where(self.weight_update_mask, weights, self.fixed_weights)
+        weight = torch.where(self.weight_update_mask, weight, self.fixed_weights)
         if layer.bias:
             bias = torch.where(self.weight_update_mask, bias, self.fixed_weights)
-        return F.conv2d(x, weights, bias, layer.stride, layer.padding)
+        return F.conv2d(x, weight, bias, layer.stride, layer.padding)
 
     def encode(self, x):
         
-        #x = self.masked_conv2d(x, self.conv2d_1)
-        #self.conv2d_1.weight = nn.Parameter(torch.where(self.weight_update_mask, self.conv2d_1.weight, self.fixed_weights))
+        x = self.masked_conv2d(x, self.conv2d)
         x = self.conv2d_enc(x)
         x = x.flatten(1)
         x = self.linear_enc(x)
@@ -111,10 +123,8 @@ class AutoEncoderWafer(nn.Module):
         '''
         Carries out the full encoding + decoding to predict x'
         '''
-        #e_total = x.sum(dim=[1, 2, 3])
         h = self.encode(x)
         x = self.decode(h)
-        #x *= e_total/x.sum(dim=[1, 2, 3])
         return x
 
 class Autoencoder(nn.Module):
