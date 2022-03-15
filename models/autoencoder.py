@@ -80,7 +80,7 @@ class AutoEncoderWafer(nn.Module):
         conv_mask[:, :, 2, 0] = 0
         conv_mask[:, :, 0, 2] = 0
         self.register_buffer('conv2d_weight_update_mask', conv_mask.bool())
-        self.register_buffer('conv2d fixed_weights', torch.zeros(8, 1, 3, 3))
+        self.register_buffer('conv2d_fixed_weights', torch.zeros(8, 1, 3, 3))
 
         # mask for wafers
         #conv_mask = torch.ones(8, 1, 8, 8)
@@ -93,11 +93,10 @@ class AutoEncoderWafer(nn.Module):
 
     def masked_conv2d(self, x, layer):
         weight = layer.weight
-        bias    = layer.bias 
+        bias   = layer.bias 
 
-        weight = torch.where(self.weight_update_mask, weight, self.fixed_weights)
-        if layer.bias:
-            bias = torch.where(self.weight_update_mask, bias, self.fixed_weights)
+        weight = torch.where(self.conv2d_weight_update_mask, weight, self.conv2d_fixed_weights)
+        #bias = torch.where(self.conv2d_weight_update_mask, bias, self.conv2d_fixed_weights)
         return F.conv2d(x, weight, bias, layer.stride, layer.padding)
 
     def encode(self, x):
