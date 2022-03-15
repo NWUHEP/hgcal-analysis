@@ -42,18 +42,18 @@ class AutoEncoderWafer(nn.Module):
             #nn.ReLU(),
             )
         self.linear_enc = nn.Sequential(
-            nn.Linear(128, 16),
+            nn.Linear(128, 64),
             nn.ReLU(),
-            #nn.Linear(64, 16),
-            #nn.ReLU()
+            nn.Linear(64, 16),
+            nn.ReLU()
             )
 
         # decoder layers
         self.linear_dec = nn.Sequential(
-            nn.Linear(16, 128),
+            nn.Linear(16, 64),
             nn.ReLU(),
-            #nn.Linear(64, 128),
-            #nn.ReLU(),
+            nn.Linear(64, 128),
+            nn.ReLU(),
             )
         self.tconv2d_dec = nn.Sequential(
             #nn.ConvTranspose2d(1, 8, 3, stride=1, padding=1),
