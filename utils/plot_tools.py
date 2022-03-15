@@ -17,25 +17,30 @@ import utils.geometry_tools as gt
 
 matplotlib.rcParams.update({'font.size': 18, 'figure.facecolor':'white', 'figure.figsize':(8, 8)})
 
-def set_default_style():                    
-    import matplotlib                       
-    np.set_printoptions(precision=3)        
-    matplotlib.style.use('default')         
-    params = {                              
-              'axes.facecolor': 'white',    
-              'axes.titlesize':'x-large',   
-              'axes.labelsize'    : 19,     
-              'xtick.labelsize'   : 16,     
-              'ytick.labelsize'   : 16,     
-              'figure.titlesize'  : 20,     
-              'figure.figsize'    : (8, 8), 
-              'legend.fontsize'   : 18,     
-              'legend.numpoints'  : 1,      
-              'font.serif': 'Arial'         
-              }                             
-    matplotlib.rcParams.update(params)      
+def set_default_style():
+    import matplotlib
+    np.set_printoptions(precision=3)
+    matplotlib.style.use('default')
+    params = {
+              'axes.facecolor': 'white',
+              'axes.titlesize':'x-large',
+              'axes.labelsize'    : 19,
+              'xtick.labelsize'   : 16,
+              'ytick.labelsize'   : 16,
+              'figure.titlesize'  : 20,
+              'figure.figsize'    : (8, 8),
+              'legend.fontsize'   : 18,
+              'legend.numpoints'  : 1,
+              'font.serif': 'Arial'
+              }
+    matplotlib.rcParams.update(params)
 
-def draw_hgcal_layer(layer=1, hex_radius=0.95*8*2.54/2, include_index=True):
+def draw_hgcal_layer(ax,
+        layer=1,
+        hex_radius=gt.hgcal_hex_radius,
+        single_wedge=False,
+        include_index=True,
+        ):
     '''
     This plots a single layer of HGCal in the x-y plane.
 
@@ -45,15 +50,11 @@ def draw_hgcal_layer(layer=1, hex_radius=0.95*8*2.54/2, include_index=True):
      * implement partial hex boards
     '''
 
-    # generate coordinates to be used for hexagonal grid.  
+    # generate coordinates to be used for hexagonal grid.
     angle = np.pi/6
     u = np.arange(-10, 11)
     hex_coord = np.array(list(product(u, u))).T
     cart_coord = gt.hex_to_cartesian(hex_coord)
-
-    # plot the full grid of wafers with u,v numbering
-    fig, ax = plt.subplots(1, figsize=(16, 16))
-    ax.set_aspect('equal')
 
     # draw hexegonal grid
     inner_radius = 0.82*32.8 # 32.8 comes from the TDR, but it's different than what is in simulation
@@ -64,76 +65,118 @@ def draw_hgcal_layer(layer=1, hex_radius=0.95*8*2.54/2, include_index=True):
 
         # filter out wafers
         r = np.sqrt(x**2 + y**2)
+        phi = np.arctan(y/(x + 0.01))
         if r < inner_radius or r > outer_radius:
             continue
 
+        if single_wedge and ((phi < -0.05 or phi > 2*angle + 0.05) or (x < 0. or y < 0.)):
+            continue
+
         color = 'C0'
-        alpha = 0.05
-        poly = RegularPolygon((x, y), 
+        poly = RegularPolygon((x, y),
                              numVertices=6,
                              radius=hex_radius,
                              orientation=np.radians(0),
                              facecolor=color,
-                             alpha=alpha,
+                             alpha=0.1,
                              edgecolor='k',
                              zorder=1
                             )
         ax.add_patch(poly)
 
         # Add text labels
-        ax.text(x, y+0.2, f'({u}, {v})', ha='center', va='center', size=10)
+        if include_index:
+            ax.text(x, y+0.2, f'({u}, {v})', ha='center', va='center', size=10)
 
     # inner hexagon and circle (just for show)
-    inner_circle = Circle((0, 0), 
+    inner_circle = Circle((0, 0),
                          radius=inner_radius,
-                         facecolor='none', 
-                         alpha=0.5, 
+                         facecolor='none',
+                         alpha=0.5,
                          linestyle='--',
                          edgecolor='r'
                          )
     ax.add_patch(inner_circle)
 
-    poly = RegularPolygon((0, 0), 
-                         numVertices=6, 
-                         radius=inner_radius/np.cos(angle), 
-                         orientation=np.radians(0), 
-                         facecolor='none', 
-                         alpha=0.5, 
+    poly = RegularPolygon((0, 0),
+                         numVertices=6,
+                         radius=inner_radius/np.cos(angle),
+                         orientation=np.radians(0),
+                         facecolor='none',
+                         alpha=0.5,
                          linestyle='--',
                          edgecolor='r'
                         )
     ax.add_patch(poly)
 
     # outer hexagon and circle (just for show)
-    outer_circle = Circle((0, 0), 
-                         radius=160, 
-                         facecolor='none', 
-                         alpha=0.5, 
+    outer_circle = Circle((0, 0),
+                         radius=160,
+                         facecolor='none',
+                         alpha=0.5,
                          linestyle='--',
                          edgecolor='r'
                          )
     ax.add_patch(outer_circle)
 
-    poly = RegularPolygon((0, 0), 
-                         numVertices=6, 
-                         radius=160, 
-                         orientation=np.radians(30), 
-                         facecolor='none', 
-                         alpha=0.5, 
+    poly = RegularPolygon((0, 0),
+                         numVertices=6,
+                         radius=160,
+                         orientation=np.radians(30),
+                         facecolor='none',
+                         alpha=0.5,
                          edgecolor='r'
                         )
 
     # draw lines every pi/3 radians
     for angle in np.arange(0, 360, 60):
         rad = (angle/180)*np.pi
-        plt.plot([0., 200*np.cos(rad)], [0., 200*np.sin(rad)], 'r--', linewidth=0.5, alpha=0.5)
-        
-    ax.set_xlim(-170, 170)
-    ax.set_ylim(-170, 170)
-                  
-    if save_and_show:
-        plt.savefig('plots/wafer_uv_mapping.pdf')
-        plt.show()
+        ax.plot([0., 200*np.cos(rad)], [0., 200*np.sin(rad)], 'r--', linewidth=0.5, alpha=0.5)
+
+    ax.set_xlabel('X [cm]')
+    ax.set_ylabel('Y [cm]')
+    if single_wedge:
+        ax.set_xlim(-10, 170)
+        ax.set_ylim(-20, 170)
     else:
-        return fig, ax
+        ax.set_xlim(-170, 170)
+        ax.set_ylim(-170, 170)
+
+    return ax
+
+def draw_single_module(ax, xy_offset=(0, 0), hex_radius=gt.hgcal_hex_radius):
+
+    x, y = xy_offset
+    # draw hexegonal grid
+    poly = RegularPolygon((x, y),
+                         numVertices=6,
+                         radius=hex_radius,
+                         orientation=np.radians(0),
+                         facecolor='C0',
+                         alpha=0.1,
+                         edgecolor='k',
+                         zorder=1
+                            )
+    ax.add_patch(poly)
+
+    # Draw HGROC boundaries
+    angle = np.pi/6
+    x1 = x + np.array([0., 0, hex_radius*np.cos(angle), hex_radius*np.cos(angle)])
+    y1 = y + np.array([0., hex_radius, hex_radius*np.sin(angle), -hex_radius*np.sin(angle)])
+    ax.add_patch(Polygon(xy=list(zip(x1, y1)), fill=False))
+
+    x2 = x + np.array([0., hex_radius*np.cos(angle), 0., -hex_radius*np.cos(angle)])
+    y2 = y + np.array([0., -hex_radius*np.sin(angle), -hex_radius, -hex_radius*np.sin(angle)])
+    ax.add_patch(Polygon(xy=list(zip(x2, y2)), fill=False))
+
+    x3 = x + np.array([0., -hex_radius*np.cos(angle), -hex_radius*np.cos(angle), 0.])
+    y3 = y + np.array([0., -hex_radius*np.sin(angle), hex_radius*np.sin(angle), hex_radius])
+    ax.add_patch(Polygon(xy=list(zip(x3, y3)), fill=False))
+
+    ax.set_xlim(x - 9, x + 9)
+    ax.set_ylim(y - 10, y + 10)
+    ax.set_xlabel('X [cm]')
+    ax.set_ylabel('Y [cm]')
+
+    return ax
 

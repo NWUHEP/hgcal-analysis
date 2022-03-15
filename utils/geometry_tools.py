@@ -24,8 +24,10 @@ conv_mask = np.array([
     [0, 1, 1]
     ])
 
+hgcal_hex_radius = 0.95*8*2.54/2
+
 def delta_phi(phi1, phi2, phi_range=(-np.pi, np.pi)):
-    dphi = np.abs(phi2 - phi1) 
+    dphi = np.abs(phi2 - phi1)
     if dphi > np.pi:
         dphi = 2*np.pi - dphi
 
@@ -71,7 +73,7 @@ def associate_gen_to_cluster(gen, df_cl, by='energy'):
     dphi[dphi > np.pi] = 2*np.pi - dphi[dphi > np.pi]
     deta               = np.abs(gen.eta - df_cl.cl_eta)
     dr                 = np.sqrt(deta**2 + dphi**2)
-    
+
     if by == 'energy':
         df_cl_cut = df_cl[dr < 0.3]
         if df_cl_cut.shape[0] == 0:
@@ -91,7 +93,7 @@ def hex_to_cartesian(hex_coord, angle = np.pi/6, hex_radius=0.95*8*2.54/2, zside
     d = 2*hex_radius*np.cos(angle)
     trans_matrix = np.array([[1., -np.sin(angle)], [0., np.cos(angle)]])
     xy = d*np.dot(trans_matrix, hex_coord)
-    
+
     return xy
 
 def hex_rotation(hex_coord, n):
@@ -99,7 +101,7 @@ def hex_rotation(hex_coord, n):
     Rotates input coordinates to a new set of coordinates n*pi/3.
     '''
     uv_rotation_matrix = np.rint([
-        [np.cos(rho) + np.sin(rho)/np.sqrt(3), -2*np.sin(rho)/np.sqrt(3)],  
+        [np.cos(rho) + np.sin(rho)/np.sqrt(3), -2*np.sin(rho)/np.sqrt(3)],
         [2*np.sin(rho)/np.sqrt(3)            , np.cos(rho) - np.sin(rho)/np.sqrt(3)]
        ])
     uv_rot = np.dot(uv_rotation_matrix, np.array(hex_coord)).astype(int)
