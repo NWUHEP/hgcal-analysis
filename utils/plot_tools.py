@@ -36,6 +36,7 @@ def set_default_style():
     matplotlib.rcParams.update(params)
 
 def draw_hgcal_layer(ax,
+        wafer_data=None,
         layer=1,
         hex_radius=gt.hgcal_hex_radius,
         single_wedge=False,
@@ -72,17 +73,20 @@ def draw_hgcal_layer(ax,
         if single_wedge and ((phi < -0.05 or phi > 2*angle + 0.05) or (x < 0. or y < 0.)):
             continue
 
-        color = 'C0'
-        poly = RegularPolygon((x, y),
-                             numVertices=6,
-                             radius=hex_radius,
-                             orientation=np.radians(0),
-                             facecolor=color,
-                             alpha=0.1,
-                             edgecolor='k',
-                             zorder=1
-                            )
-        ax.add_patch(poly)
+        if wafer_data and (u, v) in wafer_data.indexx:
+            pass
+        else:
+            color = 'C0'
+            poly = RegularPolygon((x, y),
+                                 numVertices=6,
+                                 radius=hex_radius,
+                                 orientation=np.radians(0),
+                                 facecolor=color,
+                                 alpha=0.1,
+                                 edgecolor='k',
+                                 zorder=1
+                                )
+            ax.add_patch(poly)
 
         # Add text labels
         if include_index:
