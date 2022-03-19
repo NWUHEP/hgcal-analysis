@@ -163,7 +163,7 @@ if __name__=='__main__':
 
             # First identify wafers with some minimum energy treshold to save
             group_labels      = ['event', 'tc_zside', 'tc_layer', 'tc_waferu', 'tc_waferv']
-            df_tcee          = df_tc.query('tc_subdet == 1')
+            df_tcee           = df_tc.query('tc_subdet == 1')
             g_wafers          = df_tcee.groupby(group_labels)
             wafer_sums        = g_wafers.apply(lambda x: x['tc_energy'].sum()) 
             masked_wafer_sums = wafer_sums.loc[wafer_sums > 1.] # only keep wafers with enough energy to be interesting

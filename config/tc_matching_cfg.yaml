@@ -1,0 +1,59 @@
+---
+clustering_option: 1
+match_only: false
+dr_threshold: 0.05
+reached_ee: 2
+ntuple_template: 'Floatingpoint{fe}Dummy{be}GenmatchGenclustersntuple/HGCalTriggerNtuple'
+gen_tree: 'FloatingpointThreshold0DummyHistomaxxydr015GenmatchGenclustersntuple/HGCalTriggerNtuple'
+backend: 'Histomaxxydr015'
+frontends: # start with full readout
+    - 'Threshold0'
+branches_gen: 
+    - 'event' # required
+    - 'genpart_pid' #required
+    - 'genpart_exphi' # required
+    - 'genpart_exeta' # required
+    - 'genpart_gen' # required
+    - 'genpart_reachedEE' # required
+    - 'genpart_pt' #required
+    - 'genpart_energy'
+branches_cl3d: # save minimal cluster information
+    - 'event'
+    - 'cl3d_id'
+    - 'cl3d_pt' #required
+    - 'cl3d_eta' # required
+    - 'cl3d_phi' # required
+branches_tc:
+    - 'event'
+#    - 'tc_n' # this is a count of trigger cells that are saved (not needed)
+#    - 'tc_id'
+    - 'tc_subdet'
+    - 'tc_zside'
+    - 'tc_layer'
+#    - 'tc_panel_number'
+#    - 'tc_panel_sector'
+#    - 'tc_wafer' 
+    - 'tc_waferu' #(?)
+    - 'tc_waferv' #(?)
+#    - 'tc_wafertype'
+#    - 'tc_cell'
+    - 'tc_cellu'
+    - 'tc_cellv'
+#    - 'tc_data'
+#    - 'tc_uncompressedCharge'
+#    - 'tc_compressedCharge'
+#    - 'tc_pt'
+#    - 'tc_mipPt'
+    - 'tc_energy'
+    - 'tc_simenergy'
+#    - 'tc_eta'
+#    - 'tc_phi'
+    - 'tc_x'
+    - 'tc_y'
+#    - 'tc_z'
+#    - 'tc_cluster_id' # these do not seem super useful as is
+#    - 'tc_multicluster_id'
+#    - 'tc_multicluster_pt'
+#    - 'tc_genparticle_index'
+output_destination: 'data'
+input_files: ['data/ntuple_no_cuts_10.root']

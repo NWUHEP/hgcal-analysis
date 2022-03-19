@@ -10,9 +10,35 @@ conv_mask[:, :, 0, 2] = 0
 wafer_mask = torch.ones(8, 1, 8, 8)
 wafer_mask[:, :, 0, 4:] = 0
 wafer_mask[:, :, 1, 5:] = 0
-wafer_mask[:, :, 6, 7:] = 0
-wafer_mask[:, :, 7, 8] = 0
+wafer_mask[:, :, 2, 6:] = 0
+wafer_mask[:, :, 3, 7]  = 0
+wafer_mask[:, :, 5, 0]  = 0
+wafer_mask[:, :, 6, :2] = 0
+wafer_mask[:, :, 7, :3] = 0
 
+class AutoEncoderModular(nn.Module):
+    '''
+    Same as AutoEncoderWafer, but encoder and decoder are factorized.  This is
+    a prototype for a version where the encoder/decoders will be assigned
+    uniquely to wafer at (layer, wafer_u, wafer_v).
+
+    '''
+    def __init__(self, indices):
+        super(AutoEncoderModular, self).__init__()
+
+        self.encoder = nn.ModuleDict({f'{i}': WaferEncoder() for i in indices})
+        #self.decoder_dict = nn.ModuleDict({f'{l} {u}': WaferDecoder() for l, u in indices})
+
+        #self.encoder = WaferEncoder()
+        self.decoder = WaferDecoder()
+
+    def forward(self, x, key=None):
+        #x = self.encoder_dict[key](x)
+        #x = self.decoder_dict[key](x)
+
+        x = self.encoder[key](x)
+        x = self.decoder(x)
+        return x
 
 class WaferEncoder(nn.Module):
     '''
@@ -20,21 +46,14 @@ class WaferEncoder(nn.Module):
     as segmented inputs for a larger autoencoder
     '''
     def __init__(self):
-        super(nn.Module, self).__init__()
+        super(WaferEncoder, self).__init__()
 
         # first convolutional layer is kept out of the full sequence so the weights can be masked
-        self.conv2d = nn.Conv2d(1, 8, 3, stride=1, padding=1, bias=False)
-        self.encode_sequence = nn.Sequential( 
-            #nn.Conv2d(1, 8, 3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.BatchNorm2d(8),
-            nn.Flatten(1),
-            nn.Linear(128, 8),
-            nn.ReLU(),
-            #nn.Linear(64, 16),
-            #nn.ReLU()
-            )
+        self.conv2d     = nn.Conv2d(1, 8, 3, stride=1, padding=1, bias=False)
+        self.act_conv   = nn.ReLU()
+        self.pool       = nn.MaxPool2d(2)
+        self.linear     = nn.Linear(128, 8)
+        self.act_linear = nn.ReLU()
 
         # mask for hexagonal convolutions
         self.register_buffer('conv2d_weight_update_mask', conv_mask.bool())
@@ -54,7 +73,11 @@ class WaferEncoder(nn.Module):
         Carries out the full encoding + decoding to predict x'
         '''
         x = self.masked_conv2d(x, self.conv2d)
-        h = self.encode_sequence(x)
+        x = self.act_conv(x)
+        x = self.pool(x)
+        x = x.flatten(1)
+        x = self.linear(x)
+        x = self.act_linear(x)
         return x
 
 class WaferDecoder(nn.Module):
@@ -63,44 +86,19 @@ class WaferDecoder(nn.Module):
     as segmented inputs for a larger autoencoder.
     '''
     def __init__(self):
-        super(nn.Module, self).__init__()
+        super(WaferDecoder, self).__init__()
 
-        # decoder layers
-        self.linear_dec = nn.Sequential(
-            nn.Linear(8, 128),
-            nn.ReLU(),
-            #nn.Linear(64, 128),
-            #nn.ReLU(),
-            )
-        self.tconv2d_dec = nn.Sequential(
-            #nn.ConvTranspose2d(1, 8, 3, stride=1, padding=1),
-            #nn.ReLU(),
-            nn.ConvTranspose2d(8, 1, 3, stride=2, padding=1, output_padding=1),
-            nn.ReLU()
-        )
+        self.linear     = nn.Linear(8, 128)
+        self.act_linear = nn.ReLU()
+        self.tconv2d    = nn.ConvTranspose2d(8, 1, 3, stride=2, padding=1, output_padding=1)
+        self.act_tconv  = nn.ReLU()
 
     def forward(self, x):
-        x = self.linear_dec(x)
+        x = self.linear(x)
+        x = self.act_linear(x)
         x = x.view(-1, 8, 4, 4)
-        x = self.tconv2d_dec(x)
-        return x
-
-class AutoEncoderModular(nn.Module):
-    '''
-    Same as AutoEncoderWafer, but encoder and decoder are factorized.  This is
-    a prototype for a version where the encoder/decoders will be assigned
-    uniquely to wafer at (layer, u, v).
-
-    '''
-    def __init__(self):
-        super(AutoEncoderWafer, self).__init__()
-
-        self.encoder = WaferEncoder()
-        self.decoder = WaferDecoder()
-
-    def forward(self, x):
-        x = self.encoder(x)
-        x = self.decoder(x)
+        x = self.tconv2d(x)
+        x = self.act_tconv(x)
         return x
 
 class AutoEncoderWafer(nn.Module):
@@ -137,27 +135,18 @@ class AutoEncoderWafer(nn.Module):
             #nn.Conv2d(1, 8, 3, stride=1, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(2),
-            #nn.BatchNorm2d(8)
-            #nn.Conv2d(8, 1, 3, stride=1, padding=1),
-            #nn.ReLU(),
             )
         self.linear_enc = nn.Sequential(
             nn.Linear(128, 8),
             nn.ReLU(),
-            #nn.Linear(64, 16),
-            #nn.ReLU()
             )
 
         # decoder layers
         self.linear_dec = nn.Sequential(
             nn.Linear(8, 128),
             nn.ReLU(),
-            #nn.Linear(64, 128),
-            #nn.ReLU(),
             )
         self.tconv2d_dec = nn.Sequential(
-            #nn.ConvTranspose2d(1, 8, 3, stride=1, padding=1),
-            #nn.ReLU(),
             nn.ConvTranspose2d(8, 1, 3, stride=2, padding=1, output_padding=1),
             nn.ReLU()
         )

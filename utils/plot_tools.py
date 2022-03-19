@@ -59,7 +59,7 @@ def draw_hgcal_layer(ax,
 
     # draw hexegonal grid
     inner_radius = 0.82*32.8 # 32.8 comes from the TDR, but it's different than what is in simulation
-    outer_radius = 160
+    outer_radius = 159
     for xy, uv in zip(cart_coord.T, hex_coord.T):
         x, y = xy
         u, v = uv
