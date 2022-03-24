@@ -26,6 +26,13 @@ conv_mask = np.array([
 
 hgcal_hex_radius = 0.95*8*2.54/2
 
+def hex_neighbors(u, v):
+    neighbors = [[u + 1, v], [u, v + 1], 
+                 [u - 1, v], [u, v - 1], 
+                 [u + 1, v + 1], [u - 1, v - 1] 
+                 ]
+    return neighbors
+
 def delta_phi(phi1, phi2, phi_range=(-np.pi, np.pi)):
     dphi = np.abs(phi2 - phi1)
     if dphi > np.pi:
@@ -96,10 +103,20 @@ def hex_to_cartesian(hex_coord, angle = np.pi/6, hex_radius=0.95*8*2.54/2, zside
 
     return xy
 
+def cartesian_rotation_2d(xy_coord, phi):
+    '''
+    Rotations in two-dimensional using cartesian coordinates.
+    '''
+    xy_rotation_matrix = np.array([[np.cos(phi), -np.sin(phi)], [np.sin(phi), np.cos(phi)]]) 
+    xy_rot = np.dot(xy_rotation_matrix, xy_coord.T)
+    return xy_rot
+
+
 def hex_rotation(hex_coord, n):
     '''
     Rotates input coordinates to a new set of coordinates n*pi/3.
     '''
+    rho = n*np.pi/3.
     uv_rotation_matrix = np.rint([
         [np.cos(rho) + np.sin(rho)/np.sqrt(3), -2*np.sin(rho)/np.sqrt(3)],
         [2*np.sin(rho)/np.sqrt(3)            , np.cos(rho) - np.sin(rho)/np.sqrt(3)]
@@ -107,3 +124,53 @@ def hex_rotation(hex_coord, n):
     uv_rot = np.dot(uv_rotation_matrix, np.array(hex_coord)).astype(int)
     return uv_rot
 
+def hex_to_rphi(hex_coord, angle = np.pi/6, hex_radius=0.95*8*2.54/2, zside=-1):
+    '''
+    Convert hex coordinates to cartesian coords this should change depending
+    on whether you are looking at the +/- z side.  Currently only works of -z
+    side.
+    '''
+    x, y = hex_to_cartesian(hex_coord, angle, hex_radius, zside)
+    r = np.sqrt(x**2 + y**2)
+    phi = np.arcsin(y/r)
+    if x < 0.:
+        phi = np.pi - phi
+    elif y < 0.:
+        phi = 2*np.pi + phi
+
+    return r, phi
+
+def map_to_first_wedge(uv, wafer_data=None, angle=np.pi/6, hex_radius=0.95*8*2.54/2, zside=-1):
+    '''
+    Given a module's (u, v) coordinates, returns the (u', v') coordinates after
+    rotating the wafer into the first wedge (modules with phi in [0, pi/3] radians)
+    and the integer multiple specifying the total rotation.
+    If wafer_data is provided, it will rotate the (u, v) coordinates of all
+    entries by the same angle.
+    '''
+
+    # first determine the phi coordinate and find
+    r, phi = hex_to_rphi(uv)
+    iphi = np.floor(phi/(np.pi/3))
+
+    if phi > np.pi/3 + 0.2:
+        uv_rot = hex_rotation(uv, -iphi)
+    else:
+        uv_rot = uv
+        iphi = 0
+
+    if wafer_data is not None:
+        wafer_data_rot = wafer_data.reset_index()
+        uv = wafer_data_rot[['tc_waferu', 'tc_waferv']].values
+        uv_rot = hex_rotation(uv.T, -iphi)
+        wafer_data_rot['tc_waferu'] = uv_rot[0]
+        wafer_data_rot['tc_waferv'] = uv_rot[1]
+        wafer_data_rot.set_index(['tc_waferu', 'tc_waferv'], inplace=True)
+
+        return wafer_data_rot['tc_energy'], iphi
+
+    return uv_rot, iphi
+
+
+
+    

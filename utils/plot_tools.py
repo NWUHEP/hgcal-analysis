@@ -39,6 +39,7 @@ def draw_hgcal_layer(ax,
         wafer_data=None,
         layer=1,
         hex_radius=gt.hgcal_hex_radius,
+        background_wafers=True,
         single_wedge=False,
         include_index=True,
         ):
@@ -60,6 +61,7 @@ def draw_hgcal_layer(ax,
     # draw hexegonal grid
     inner_radius = 0.82*32.8 # 32.8 comes from the TDR, but it's different than what is in simulation
     outer_radius = 159
+    cmap = matplotlib.cm.get_cmap('Reds')
     for xy, uv in zip(cart_coord.T, hex_coord.T):
         x, y = xy
         u, v = uv
@@ -70,26 +72,38 @@ def draw_hgcal_layer(ax,
         if r < inner_radius or r > outer_radius:
             continue
 
-        if single_wedge and ((phi < -0.05 or phi > 2*angle + 0.05) or (x < 0. or y < 0.)):
-            continue
+        alpha = 0.3
+        if single_wedge and ((phi < -0.05 or phi > 2*angle - 0.05) or (x < 0. or y < 0.)):
+            alpha = 0.1
+            #continue
 
-        if wafer_data and (u, v) in wafer_data.indexx:
-            pass
-        else:
+        if wafer_data is not None and (u, v) in wafer_data.index:
+            color = cmap(wafer_data[(u, v)]/wafer_data.max())
+            poly = RegularPolygon((x, y),
+                                 numVertices=6,
+                                 radius=hex_radius,
+                                 orientation=np.radians(0),
+                                 facecolor=color,
+                                 alpha=alpha,
+                                 edgecolor='k',
+                                 zorder=1
+                                )
+            ax.add_patch(poly)
+        elif background_wafers:
             color = 'C0'
             poly = RegularPolygon((x, y),
                                  numVertices=6,
                                  radius=hex_radius,
                                  orientation=np.radians(0),
                                  facecolor=color,
-                                 alpha=0.1,
+                                 alpha=alpha,
                                  edgecolor='k',
                                  zorder=1
                                 )
             ax.add_patch(poly)
 
         # Add text labels
-        if include_index:
+        if include_index and alpha > 0.1:
             ax.text(x, y+0.2, f'({u}, {v})', ha='center', va='center', size=10)
 
     # inner hexagon and circle (just for show)
@@ -140,8 +154,8 @@ def draw_hgcal_layer(ax,
     ax.set_xlabel('X [cm]')
     ax.set_ylabel('Y [cm]')
     if single_wedge:
-        ax.set_xlim(-10, 170)
-        ax.set_ylim(-20, 170)
+        ax.set_xlim(0, 170)
+        ax.set_ylim(-20, 140)
     else:
         ax.set_xlim(-170, 170)
         ax.set_ylim(-170, 170)

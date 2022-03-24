@@ -16,14 +16,20 @@ wafer_mask[:, :, 5, 0]  = 0
 wafer_mask[:, :, 6, :2] = 0
 wafer_mask[:, :, 7, :3] = 0
 
+# indices are for (layer, waferu) groupings
+default_indices = [(0, 0), (0, 1), (0, 2),
+                   (1, 0), (1, 1), (1, 2),
+                   (2, 0), (2, 1), (2, 2),
+                   (3, 0), (3, 1), (3, 2)
+                ]
+
 class AutoEncoderModular(nn.Module):
     '''
     Same as AutoEncoderWafer, but encoder and decoder are factorized.  This is
     a prototype for a version where the encoder/decoders will be assigned
     uniquely to wafer at (layer, wafer_u, wafer_v).
-
     '''
-    def __init__(self, indices):
+    def __init__(self, indices=default_indices):
         super(AutoEncoderModular, self).__init__()
 
         self.encoder = nn.ModuleDict({f'{i}': WaferEncoder() for i in indices})
@@ -32,11 +38,14 @@ class AutoEncoderModular(nn.Module):
         #self.encoder = WaferEncoder()
         self.decoder = WaferDecoder()
 
-    def forward(self, x, key=None):
+    def encode(self, x, key):
+        return self.encoder[key](x)
+
+    def forward(self, x, key):
         #x = self.encoder_dict[key](x)
         #x = self.decoder_dict[key](x)
 
-        x = self.encoder[key](x)
+        x = self.encode(x, key)
         x = self.decoder(x)
         return x
 

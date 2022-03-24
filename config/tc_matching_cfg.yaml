@@ -55,5 +55,5 @@ branches_tc:
 #    - 'tc_multicluster_id'
 #    - 'tc_multicluster_pt'
 #    - 'tc_genparticle_index'
-output_destination: 'data'
+output_destination: 'data/single_neigborhood'
 input_files: ['data/ntuple_no_cuts_10.root']
