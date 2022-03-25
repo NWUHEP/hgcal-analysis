@@ -27,7 +27,7 @@ conv_mask = np.array([
 hgcal_hex_radius = 0.95*8*2.54/2
 
 def hex_neighbors(u, v):
-    neighbors = [[u + 1, v], [u, v + 1], 
+    neighbors = [[u, v], [u + 1, v], [u, v + 1], 
                  [u - 1, v], [u, v - 1], 
                  [u + 1, v + 1], [u - 1, v - 1] 
                  ]

@@ -168,11 +168,6 @@ if __name__=='__main__':
             wafer_sums        = g_wafers.apply(lambda x: x['tc_energy'].sum()) 
             masked_wafer_sums = wafer_sums.loc[wafer_sums > 1.] # only keep wafers with enough energy to be interesting
 
-            # in the next iteration, I will save wafers by layers, for now just
-            # keep all wafers and don't differentiate based on layer or wafer
-            # id 
-            
-            group_labels.remove('event')
             df_tcee = df_tcee.set_index(group_labels, append=True).droplevel(1)
             data_dict = dict()
             for ix_wafer in masked_wafer_sums.index:
@@ -184,6 +179,8 @@ if __name__=='__main__':
                 waferu, waferv = ix_wafer[3], ix_wafer[4]
                 if (waferu, waferv) not in wafer_dict.keys():
                     wafer_dict[(waferu, waferv)] = np.zeros((14, 8, 8))
+
+                uv_neighborhood = gt.hex_neigbhorhood((waferu, waferv))
 
                 wafer_grid = wafer_dict[(waferu, waferv)]
                 df_wafer = df_tcee.loc[ix_wafer]
