@@ -26,7 +26,18 @@ conv_mask = np.array([
 
 hgcal_hex_radius = 0.95*8*2.54/2
 
-def hex_neighbors(u, v):
+wafer_uv_offsets = {
+        (0, 0)   : (8, 8),
+        (1, 0)   : (4, 0),
+        (0, 1)   : (16, 12),
+        (1, 1)   : (12, 4),
+        (-1, -1) : (4, 12),
+        (-1, 0)  : (12, 16),
+        (0, -1)  : (0, 4),
+       }
+
+def hex_neighbors(uv):
+    u, v = uv
     neighbors = [[u, v], [u + 1, v], [u, v + 1], 
                  [u - 1, v], [u, v - 1], 
                  [u + 1, v + 1], [u - 1, v - 1] 
@@ -176,12 +187,11 @@ def get_events_in_neighborhood(uv, df_data):
     Filters dataframe down to events with maximum energy in wafer uv.
     '''
 
-    u, v = uv
-    hex_neighbor = hex_neighbors(u, v)
+    hex_neighborhood = hex_neighbors(uv)
     wafer_group = df_data.groupby(['event', 'tc_waferu', 'tc_waferv'])
     energy_max_idx = wafer_group.sum()[['tc_energy']].groupby(level=0).idxmax()['tc_energy'].to_list()
     wafer_emap = pd.DataFrame(energy_max_idx, columns=['event', 'waferu', 'waferv']).set_index(['waferu', 'waferv'])
-    wafer_mask = wafer_emap.index.isin(hex_neighbor)
+    wafer_mask = wafer_emap.index.isin(hex_neighborhood)
     events = wafer_emap[wafer_mask]['event'].values
 
     return events
@@ -199,11 +209,21 @@ def convert_wafer_to_array(s_tc):
     
     return wafer_grid
 
-def convert_wafer_neighborhood_to_array(df_tc, uv_neighborhood):
+def convert_wafer_neighborhood_to_array(s_tc, hex_uv):
     '''
     Takes a dataframe of trigger cells and converts all entries in the
     neighborhood defined by uv into a 24 by 24 grid.
     '''
 
     wafer_grid = np.zeros((14, 24, 24))
+    hex_neighborhood = np.array([hex_uv] + hex_neighbors(hex_uv))
+    for uv in hex_neighborhood:
+        relative_uv = uv - np.array(hex_uv)
+        uv_offset = wafer_uv_offsets[tuple(relative_uv)]
+        if np.sum([t[1:3] == hex_uv for t in s_tc.index]) > 0:
+            wafer_array = convert_wafer_to_array(s_tc.loc[:,uv[0], uv[1]])
+            #wafer_array = np.random.randn(8, 8)
+            u, v = uv_offset[0], uv_offset[1]
+            wafer_grid[:, uv_offset[0]:uv_offset[0] + 8, uv_offset[1]:uv_offset[1] + 8] += wafer_array
+
     return wafer_grid
