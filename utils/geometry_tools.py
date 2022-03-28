@@ -171,6 +171,39 @@ def map_to_first_wedge(uv, wafer_data=None, angle=np.pi/6, hex_radius=0.95*8*2.5
 
     return uv_rot, iphi
 
+def get_events_in_neighborhood(uv, df_data):
+    '''
+    Filters dataframe down to events with maximum energy in wafer uv.
+    '''
 
+    u, v = uv
+    hex_neighbor = hex_neighbors(u, v)
+    wafer_group = df_data.groupby(['event', 'tc_waferu', 'tc_waferv'])
+    energy_max_idx = wafer_group.sum()[['tc_energy']].groupby(level=0).idxmax()['tc_energy'].to_list()
+    wafer_emap = pd.DataFrame(energy_max_idx, columns=['event', 'waferu', 'waferv']).set_index(['waferu', 'waferv'])
+    wafer_mask = wafer_emap.index.isin(hex_neighbor)
+    events = wafer_emap[wafer_mask]['event'].values
 
+    return events
+
+def convert_wafer_to_array(s_tc):
+    '''
+    Takes a series of trigger cells indexed by (layer, cellu, cellv) and
+    converts all entries single wafer into an 8 by 8 grid.
+    '''
+
+    wafer_grid = np.zeros((14, 8, 8))
+    for (layer, cellu, cellv), e in s_tc.items():
+        layer = int((layer - 1)/2)
+        wafer_grid[layer, cellu, cellv] = e
     
+    return wafer_grid
+
+def convert_wafer_neighborhood_to_array(df_tc, uv_neighborhood):
+    '''
+    Takes a dataframe of trigger cells and converts all entries in the
+    neighborhood defined by uv into a 24 by 24 grid.
+    '''
+
+    wafer_grid = np.zeros((14, 24, 24))
+    return wafer_grid

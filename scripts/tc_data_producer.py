@@ -180,7 +180,7 @@ if __name__=='__main__':
                 if (waferu, waferv) not in wafer_dict.keys():
                     wafer_dict[(waferu, waferv)] = np.zeros((14, 8, 8))
 
-                uv_neighborhood = gt.hex_neigbhorhood((waferu, waferv))
+                uv_neighborhood = gt.hex_neighbors(waferu, waferv)
 
                 wafer_grid = wafer_dict[(waferu, waferv)]
                 df_wafer = df_tcee.loc[ix_wafer]
