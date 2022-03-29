@@ -79,23 +79,12 @@ class HGCalTCModuleDataset(Dataset):
 
     def unpack_wafer_data(self, do_stacks):
         wafers = []
-        wafer_uv = []
         for filename in self.input_files:
             f = open(filename, 'rb')
             data = pickle.load(f)
             for (event, zside), event_data in data.items():
                 for (waferu, waferv), tc_stack in event_data.items():
-                    wafer_uv.append((waferu, waferv))
-                    if do_stacks:
-                        wafers.append([torch.tensor(tc_stack).float(), toch.tensor([waferu, waferv])])
-                    else:
-                        wafers.append([tc_stack, torch.tensor([waferu, waferv])])
+                    wafers.append((torch.tensor(tc_stack).float(), torch.tensor([waferu, waferv])))
 
         # temporary: stack all wafers and remove empty wafers (those should be trained on though)
-        if do_stacks:
-            return wafers
-        else:
-            wafers = np.vstack(wafers)
-            wafers_sums = wafers.sum(axis=(1, 2))
-            wafers = wafers[wafers_sums > 10]
-            return torch.tensor(wafers).float()
+        return wafers

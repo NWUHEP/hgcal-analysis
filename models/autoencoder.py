@@ -3,20 +3,11 @@ from torch import nn
 import torch.nn.functional as F
 import sparseconvnet as scn
 
-from utils.geometry_tools import wafer_mask, conv_mask
+from utils.geometry_tools import wafer_mask_14x8x8, conv_mask
 
-conv_mask = torch.ones(8, 1, 3, 3)
-conv_mask[:, :, 2, 0] = 0
-conv_mask[:, :, 0, 2] = 0
-
-wafer_mask = torch.ones(8, 1, 8, 8)
-wafer_mask[:, :, 0, 4:] = 0
-wafer_mask[:, :, 1, 5:] = 0
-wafer_mask[:, :, 2, 6:] = 0
-wafer_mask[:, :, 3, 7]  = 0
-wafer_mask[:, :, 5, 0]  = 0
-wafer_mask[:, :, 6, :2] = 0
-wafer_mask[:, :, 7, :3] = 0
+conv_mask = torch.tensor(conv_mask)
+wafer_mask = torch.tensor(wafer_mask_14x8x8)
+neighborhood_mask = torch.tensor(wafer_mask_14x8x8)
 
 # indices are for (layer, waferu) groupings
 default_indices = [(0, 0), (0, 1), (0, 2),

@@ -7,6 +7,13 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 
+hgcal_hex_radius = 0.95*8*2.54/2
+conv_mask = np.array([
+    [1, 1, 0],
+    [1, 1, 1],
+    [0, 1, 1]
+    ])
+
 wafer_mask_8x8 = np.array([
     [1, 1, 1, 1, 0, 0, 0, 0],
     [1, 1, 1, 1, 1, 0, 0, 0],
@@ -17,16 +24,7 @@ wafer_mask_8x8 = np.array([
     [0, 0, 1, 1, 1, 1, 1, 1],
     [0, 0, 0, 1, 1, 1, 1, 1],
     ])
-
 wafer_mask_14x8x8 = np.tile(wafer_mask_8x8, (14, 1)).reshape(14, 8, 8)
-
-conv_mask = np.array([
-    [1, 1, 0],
-    [1, 1, 1],
-    [0, 1, 1]
-    ])
-
-hgcal_hex_radius = 0.95*8*2.54/2
 
 wafer_uv_offsets = {
         (0, 0)   : (8, 8),
@@ -37,6 +35,9 @@ wafer_uv_offsets = {
         (-1, 0)  : (12, 16),
         (0, -1)  : (0, 4),
        }
+wafer_mask_14x24x24 = np.zeros((14, 24, 24))
+for uv, offset in wafer_uv_offsets.items():
+    wafer_mask_14x24x24[:, offset[0]:offset[0] + 8, offset[1]:offset[1] + 8] += wafer_mask_14x8x8
 
 def hex_neighbors(uv):
     u, v = uv
