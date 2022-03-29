@@ -87,9 +87,9 @@ class HGCalTCModuleDataset(Dataset):
                 for (waferu, waferv), tc_stack in event_data.items():
                     wafer_uv.append((waferu, waferv))
                     if do_stacks:
-                        wafers.append(torch.tensor(tc_stack).float(), toch.tensor([waferu, waferv]))
+                        wafers.append([torch.tensor(tc_stack).float(), toch.tensor([waferu, waferv])])
                     else:
-                        wafers.append(tc_stack, toch.tensor([waferu, waferv]))
+                        wafers.append([tc_stack, torch.tensor([waferu, waferv])])
 
         # temporary: stack all wafers and remove empty wafers (those should be trained on though)
         if do_stacks:

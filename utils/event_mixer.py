@@ -28,7 +28,7 @@ class EventMixer():
 
         list_df_tc = []
         list_df_gen = []
-        for filename in tqdm(self._input_files):
+        for filename in tqdm(self._filenames):
             # get the data
             input_file = open(filename, 'rb')
             data_dict = pickle.load(input_file)
@@ -84,3 +84,8 @@ class EventMixer():
 if __name__ == '__main__':
     filenames = glob('local_data/tc_data/*')
     event_mixer = EventMixer(filenames)
+    event_mixtures = event_mixer.get_event_mixtures(10000, (5, 2))
+
+    outfile = open('local_data/mixtures/single_photon_5_2_test.pkl')
+    pickle.dump(event_mixtures, outfile)
+    outfile.close()

@@ -1,6 +1,8 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
+import sparseconvnet as scn
+
 from utils.geometry_tools import wafer_mask, conv_mask
 
 conv_mask = torch.ones(8, 1, 3, 3)
