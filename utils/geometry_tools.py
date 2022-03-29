@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 
-wafer_mask = np.array([
+wafer_mask_8x8 = np.array([
     [1, 1, 1, 1, 0, 0, 0, 0],
     [1, 1, 1, 1, 1, 0, 0, 0],
     [1, 1, 1, 1, 1, 1, 0, 0],
@@ -17,6 +17,8 @@ wafer_mask = np.array([
     [0, 0, 1, 1, 1, 1, 1, 1],
     [0, 0, 0, 1, 1, 1, 1, 1],
     ])
+
+wafer_mask_14x8x8 = np.tile(wafer_mask_8x8, (14, 1)).reshape(14, 8, 8)
 
 conv_mask = np.array([
     [1, 1, 0],
@@ -38,9 +40,9 @@ wafer_uv_offsets = {
 
 def hex_neighbors(uv):
     u, v = uv
-    neighbors = [[u, v], [u + 1, v], [u, v + 1], 
-                 [u - 1, v], [u, v - 1], 
-                 [u + 1, v + 1], [u - 1, v - 1] 
+    neighbors = [[u, v + 1], [u + 1, v + 1], 
+                 [u - 1, v], [u, v], [u + 1, v], 
+                 [u - 1, v - 1], [u, v - 1],  
                  ]
     return neighbors
 
@@ -216,14 +218,16 @@ def convert_wafer_neighborhood_to_array(s_tc, hex_uv):
     '''
 
     wafer_grid = np.zeros((14, 24, 24))
-    hex_neighborhood = np.array([hex_uv] + hex_neighbors(hex_uv))
+    hex_neighborhood = hex_neighbors(hex_uv)
+    wafer_uv = [t[1:3] for t in s_tc.index]
     for uv in hex_neighborhood:
         relative_uv = uv - np.array(hex_uv)
-        uv_offset = wafer_uv_offsets[tuple(relative_uv)]
-        if np.sum([t[1:3] == hex_uv for t in s_tc.index]) > 0:
-            wafer_array = convert_wafer_to_array(s_tc.loc[:,uv[0], uv[1]])
-            #wafer_array = np.random.randn(8, 8)
-            u, v = uv_offset[0], uv_offset[1]
+        uv_offset   = wafer_uv_offsets[tuple(relative_uv)]
+        #wafer_grid[:, uv_offset[0]:uv_offset[0] + 8, uv_offset[1]:uv_offset[1] + 8] += wafer_mask_14x8x8
+        if tuple(uv) in wafer_uv:
+            wafer_data  = s_tc.loc[:,uv[0], uv[1]]
+            wafer_array = convert_wafer_to_array(wafer_data)
             wafer_grid[:, uv_offset[0]:uv_offset[0] + 8, uv_offset[1]:uv_offset[1] + 8] += wafer_array
+
 
     return wafer_grid
