@@ -47,7 +47,6 @@ class HGCalTCModuleDictDataset(Dataset):
                     uv, _ = gt.map_to_first_wedge(uv)
                     u_bin = np.digitize(uv[0], bins=gt.wafer_bins)
                     wafers.append((torch.tensor(tc_stack).float(), u_bin))
-            break
 
         # temporary: stack all wafers and remove empty wafers (those should be trained on though)
         return wafers

@@ -1,4 +1,5 @@
 from itertools import product
+import numpy as np
 
 import torch
 from torch import nn
@@ -8,9 +9,10 @@ import sparseconvnet as scn
 from utils.geometry_tools import wafer_mask_14x8x8, conv_mask, wafer_bins, layer_bins
 
 conv_mask = torch.tensor(conv_mask)
+conv_mask_layers = torch.tensor(np.tile(conv_mask, (14*8, 1, 1)))
 wafer_mask = torch.tensor(wafer_mask_14x8x8)
 neighborhood_mask = torch.tensor(wafer_mask_14x8x8)
-default_keys = range(len(wafer_bins))
+default_keys = range(len(wafer_bins) + 1)
 
 class AutoEncoderModular(nn.Module):
     '''
@@ -65,8 +67,8 @@ class WaferEncoder(nn.Module):
         #self.act_linear = nn.ReLU()
 
         # mask for hexagonal convolutions
-        self.register_buffer('conv2d_weight_update_mask', conv_mask.bool())
-        self.register_buffer('conv2d_fixed_weights', torch.zeros(8, 1, 3, 3))
+        self.register_buffer('conv2d_weight_update_mask', conv_mask_layers.bool())
+        self.register_buffer('conv2d_fixed_weights', torch.zeros(8*14, 1, 3, 3))
 
     def masked_conv2d(self, x, layer):
         weight = layer.weight
@@ -81,7 +83,7 @@ class WaferEncoder(nn.Module):
         '''
         Carries out the encoding step'
         '''
-        #x = self.masked_conv2d(x, self.conv2d)
+        #x = self.masked_conv2d(x.unsqueeze(0), self.conv2d)
         x = self.conv2d(x.unsqueeze(0))
         x = self.act_conv(x)
         x = self.pool(x)
@@ -163,7 +165,7 @@ class AutoEncoderWafer(nn.Module):
         )
 
         # mask for hexagonal convolutions
-        self.register_buffer('conv2d_weight_update_mask', conv_mask.bool())
+        self.register_buffer('conv2d_weight_update_mask', conv_mask_layers.bool())
         self.register_buffer('conv2d_fixed_weights', torch.zeros(8, 1, 3, 3))
 
         # mask for wafers

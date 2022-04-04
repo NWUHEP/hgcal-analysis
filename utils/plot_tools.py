@@ -163,13 +163,15 @@ def draw_hgcal_layer(ax,
 
     return ax
 
-def draw_single_module(ax, 
-        uv=(0, 0), 
-        cell_data=None,
-        hex_radius=gt.hgcal_hex_radius,
-        do_fill=False,
-        include_tc_index=False
-        ):
+
+def draw_single_module(ax,
+                       uv=(0, 0),
+                       cell_data=None,
+                       hex_radius=gt.hgcal_hex_radius,
+                       do_fill=False,
+                       draw_cbar=False,
+                       include_tc_index=False
+                       ):
     '''
     Draws a single HGCal wafer/module including HGROC boundaries.  If cell_data
     is provided this can be used to visualize energy deposits in each trigger
@@ -178,74 +180,111 @@ def draw_single_module(ax,
 
     # calculate offset in cartesian coordinates
     xy_offset = gt.hex_to_cartesian(uv)
-    x_offset, y_offset = xy_offset
 
     # draw hexegonal grid
-    poly = RegularPolygon((x_offset, y_offset),
-                         numVertices=6,
-                         radius=hex_radius,
-                         orientation=np.radians(0),
-                         facecolor='C0',
-                         alpha=0.1,
-                         edgecolor='k',
-                         zorder=1
-                            )
-    #ax.add_patch(poly)
+    poly = RegularPolygon(xy_offset,
+            numVertices=6,
+            radius=hex_radius,
+            orientation=np.radians(0),
+            facecolor='C0',
+            alpha=0.1,
+            edgecolor='k',
+            zorder=1
+            )
+    ax.add_patch(poly)
 
     # Draw HGROC boundaries
-    angle = np.pi/6
     color_list = ['g', 'b', 'r']
-    for orientation in [1, 2, 3]:
-        color = color_list[orientation - 1] if do_fill else 'k'
-        hgroc_patch = Polygon(xy=gt.get_tc_rhombus(orientation, [x_offset, y_offset]), 
-                fill=do_fill, 
-                color=color, 
+    for color, orientation in zip(['g', 'b', 'r'], [1, 2, 3]):
+        if not do_fill:
+            color = 'k'
+        hgroc_patch = Polygon(xy=gt.get_tc_rhombus(orientation, xy_offset),
+                fill=do_fill,
+                color=color,
                 alpha=0.6
                 )
         ax.add_patch(hgroc_patch)
 
-    #ax.set_xlim(x_offset - 9, x_offset + 9)
-    #ax.set_ylim(y_offset - 10, y_offset + 10)
-    #ax.set_xlabel('X [cm]')
-    #ax.set_ylabel('Y [cm]')
-
     cmap = matplotlib.cm.get_cmap('viridis')
     df_uv_to_xy = pd.read_csv('data/tc_uv_to_xy.csv').set_index(['tc_cellu', 'tc_cellv'])
+    tc_radius = gt.hgcal_hex_radius/4
     for (u, v), (x, y) in df_uv_to_xy.iterrows():
         u, v = int(u), int(v)
-        tc_radius = gt.hgcal_hex_radius/4
-        x, y = x - x_offset, y - y_offset
+        x, y = x - xy_offset[0], y - xy_offset[1]
 
         if include_tc_index:
             ax.text(x, y, f'({u}, {v})', ha='center', va='center', size=14, color='w' if do_fill else'k')
 
         orientation = gt.wafer_mask_hgroc[u, v]
-        hgroc_angle = np.pi*(1/6 + 2*orientation/3 + 0.063)  
+        hgroc_angle = np.pi*(1/6 + 2*orientation/3 + 0.063)
         x, y = x - 0.5*tc_radius*np.cos(hgroc_angle), y - 0.5*tc_radius*np.sin(hgroc_angle)
         tc_xy = gt.get_tc_rhombus(orientation, [x, y], hex_radius=tc_radius)
         if cell_data is not None:
             color = cmap(cell_data.loc[u, v]/cell_data.max())
-            tc_patch = Polygon(xy=tc_xy, 
-                    fill=True, 
+            tc_patch = Polygon(xy=tc_xy,
+                    fill=True,
                     edgecolor='k',
-                    facecolor=color, 
+                    facecolor=color,
                     linewidth=4.,
                     alpha=1.,
                     zorder=2,
                     )
         else:
             color = color_list[orientation - 1]
-            tc_patch = Polygon(xy=tc_xy, 
-                    fill=False, 
-                    color=color, 
+            tc_patch = Polygon(xy=tc_xy,
+                    fill=False,
+                    color=color,
                     linewidth=3.,
                     alpha=1.,
                     zorder=2
                     )
         ax.add_patch(tc_patch)
 
+    if draw_cbar:
+        cbar = fig.colorbar(scat, ax=ax, shrink=1.)
+        cbar.set_label('trigger cell energy [GeV]')
+
+    ax.set_xlim(xy_offset[0] - 9, xy_offset[0] + 9)
+    ax.set_ylim(xy_offset[1] - 10, xy_offset[1] + 10)
+    ax.set_xlabel('X [cm]')
+    ax.set_ylabel('Y [cm]')
+
     return ax
 
-def animate_wafer_neighbor_shower(ax, df_event,):
+def draw_single_module_pixels(ax, cell_data=None):
+    '''
+    Produces a plot of a single module on a square grid (pixel view).
+
+    :param ax: axis object used for drawing module
+    :param cell_data: (optional) if specifed the cells will be drawn according to values in cell_data
+    '''
+
+    mask = gt.wafer_mask_8x8.astype(float)
+    mask[mask == 1.] = np.nan
+    ax.pcolor(mask, edgecolors='k', linewidths=1, hatch='X', cmap='Greys')
+
+    if cell_data is not None:
+        hgroc_img = gt.convert_wafer_to_array(cell_data)
+        hgroc_img[~mask.astype(bool)] = np.nan
+        ax.pcolor(hgroc_img, edgecolors='k', linewidths=4, cmap='viridis', vmin=0.5, vmax=None)
+        hgroc_img = gt.wafer_mask_hgroc.astype(float)
+    else:
+        cmap1 = matplotlib.colors.LinearSegmentedColormap.from_list('mycmap', ['g', 'b', 'r'])
+        hgroc_img = gt.wafer_mask_hgroc.astype(float)
+        hgroc_img[hgroc_img == 0] = np.nan
+        ax.pcolor(hgroc_img, edgecolors='face', linewidths=4, cmap=cmap1, alpha=0.6)
+
+    # default style
+    ax.set_xticks(list(range(9)))
+    ax.set_yticks(list(range(9)))
+    ax.set_xlabel(r'$\mathit{j}$')
+    ax.set_ylabel(r'$\mathit{i}$')
+    ax.set_title('Pixels')
+    plt.gca().invert_yaxis()
+
+    return ax
+
+
+def animate_wafer_neighbor_shower(ax, df_event):
     pass
 
