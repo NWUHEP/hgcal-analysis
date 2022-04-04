@@ -1,17 +1,30 @@
 '''
-Some tools for visualizing detector elements.
+Data and tools for handling HGCal trigger cell geometry for training ML models.
 '''
 
 import pandas as pd
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+from itertools import product
 
+# hex to array masks and mapping
 hgcal_hex_radius = 0.95*8*2.54/2
 conv_mask = np.array([
     [1, 1, 0],
     [1, 1, 1],
     [0, 1, 1]
+    ])
+
+wafer_mask_hgroc = np.array([
+    [2, 2, 2, 2, 0, 0, 0, 0],
+    [3, 2, 2, 2, 2, 0, 0, 0],
+    [3, 3, 2, 2, 2, 2, 0, 0],
+    [3, 3, 3, 2, 2, 2, 2, 0],
+    [3, 3, 3, 3, 1, 1, 1, 1],
+    [0, 3, 3, 3, 1, 1, 1, 1],
+    [0, 0, 3, 3, 1, 1, 1, 1],
+    [0, 0, 0, 3, 1, 1, 1, 1],
     ])
 
 wafer_mask_8x8 = np.array([
@@ -39,6 +52,31 @@ wafer_mask_14x24x24 = np.zeros((14, 24, 24))
 for uv, offset in wafer_uv_offsets.items():
     wafer_mask_14x24x24[:, offset[0]:offset[0] + 8, offset[1]:offset[1] + 8] += wafer_mask_14x8x8
 
+# binning of wafer coordinates to unique encoder modules
+wafer_bins = [2, 4, 7, 11]
+layer_bins = [4, 8, 10, 12, 16, 20, 28]
+
+# patch definitions for HGROC and trigger cells
+def get_tc_rhombus(orientation, xy_offset=[0., 0.], angle=np.pi/6, hex_radius=hgcal_hex_radius):
+    '''
+    Returns vertex coordinates of rhombus that can be used as a patch for
+    visualizing an HGROC or individual trigger cells.
+    '''
+    if orientation == 1:
+        x = np.array([0., -np.cos(angle), -np.cos(angle), 0.])
+        y = np.array([0., -np.sin(angle), np.sin(angle),  1.])
+    elif orientation == 2:
+        x = np.array([0., np.cos(angle),  0.,  -np.cos(angle)])
+        y = np.array([0., -np.sin(angle), -1., -np.sin(angle)])
+    else:
+        x = np.array([0., 0,  np.cos(angle), np.cos(angle)])
+        y = np.array([0., 1., np.sin(angle), -np.sin(angle)])
+
+    x = xy_offset[0] + hex_radius*x
+    y = xy_offset[1] + hex_radius*y
+    return np.vstack([x, y]).T
+
+# helper functions
 def hex_neighbors(uv):
     u, v = uv
     neighbors = [[u, v + 1], [u + 1, v + 1], 
@@ -199,16 +237,22 @@ def get_events_in_neighborhood(uv, df_data):
 
     return events
 
-def convert_wafer_to_array(s_tc):
+def convert_wafer_to_array(s_tc, single_layer=True):
     '''
     Takes a series of trigger cells indexed by (layer, cellu, cellv) and
     converts all entries single wafer into an 8 by 8 grid.
     '''
 
-    wafer_grid = np.zeros((14, 8, 8))
-    for (layer, cellu, cellv), e in s_tc.items():
-        layer = int((layer - 1)/2)
-        wafer_grid[layer, cellu, cellv] = e
+    if single_layer:
+        wafer_grid = np.zeros((8, 8))
+        for (cellu, cellv), e in s_tc.items():
+            wafer_grid[cellu, cellv] = e
+
+    else:
+        wafer_grid = np.zeros((14, 8, 8))
+        for (layer, cellu, cellv), e in s_tc.items():
+            layer = int((layer - 1)/2)
+            wafer_grid[layer, cellu, cellv] = e
     
     return wafer_grid
 
@@ -232,3 +276,4 @@ def convert_wafer_neighborhood_to_array(s_tc, hex_uv):
 
 
     return wafer_grid
+    

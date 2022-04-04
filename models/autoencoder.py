@@ -1,20 +1,16 @@
+from itertools import product
+
 import torch
 from torch import nn
 import torch.nn.functional as F
 import sparseconvnet as scn
 
-from utils.geometry_tools import wafer_mask_14x8x8, conv_mask
+from utils.geometry_tools import wafer_mask_14x8x8, conv_mask, wafer_bins, layer_bins
 
 conv_mask = torch.tensor(conv_mask)
 wafer_mask = torch.tensor(wafer_mask_14x8x8)
 neighborhood_mask = torch.tensor(wafer_mask_14x8x8)
-
-# indices are for (layer, waferu) groupings
-default_indices = [(0, 0), (0, 1), (0, 2),
-                   (1, 0), (1, 1), (1, 2),
-                   (2, 0), (2, 1), (2, 2),
-                   (3, 0), (3, 1), (3, 2)
-                ]
+default_keys = range(len(wafer_bins))
 
 class AutoEncoderModular(nn.Module):
     '''
@@ -22,24 +18,25 @@ class AutoEncoderModular(nn.Module):
     a prototype for a version where the encoder/decoders will be assigned
     uniquely to wafer at (layer, wafer_u, wafer_v).
     '''
-    def __init__(self, indices=default_indices):
+    def __init__(self, keys=default_keys):
         super(AutoEncoderModular, self).__init__()
 
-        self.encoder = nn.ModuleDict({f'{i}': WaferEncoder() for i in indices})
-        #self.decoder_dict = nn.ModuleDict({f'{l} {u}': WaferDecoder() for l, u in indices})
+        self.encoder = nn.ModuleDict({f'{i}': WaferEncoder() for i in keys})
+        self.decoder = nn.ModuleDict({f'{i}': WaferDecoder() for i in keys})
 
+        #self.decoder_dict = nn.ModuleDict({f'{l} {u}': WaferDecoder() for l, u in indices})
         #self.encoder = WaferEncoder()
-        self.decoder = WaferDecoder()
+        #self.decoder = WaferDecoder()
 
     def encode(self, x, key):
         return self.encoder[key](x)
 
-    def forward(self, x, key):
-        #x = self.encoder_dict[key](x)
-        #x = self.decoder_dict[key](x)
+    def decode(self, x, key):
+        return self.decoder[key](x)
 
-        x = self.encode(x, key)
-        x = self.decoder(x)
+    def forward(self, x, keys):
+        x = [self.encode(x[i], f'{k}') for i, k in enumerate(keys)]
+        x = torch.vstack([self.decode(x[i], f'{k}') for i, k in enumerate(keys)])
         return x
 
 class WaferEncoder(nn.Module):
@@ -47,15 +44,25 @@ class WaferEncoder(nn.Module):
     A module that encodes data for a single HGCal wafer.  Intended for use
     as segmented inputs for a larger autoencoder
     '''
-    def __init__(self):
+    def __init__(self, batch_size=1):
         super(WaferEncoder, self).__init__()
 
-        # first convolutional layer is kept out of the full sequence so the weights can be masked
-        self.conv2d     = nn.Conv2d(1, 8, 3, stride=1, padding=1, bias=False)
+        # batch size seems to be needed to handle modular layers
+        self.batch_size = batch_size
+
+        # convolution is done across all layers as a depth-wise convolution
+        # with 8 output channels per input layer
+        self.conv2d     = nn.Conv2d(14, 8*14, 3, stride=1, padding=1, bias=False, groups=14)
         self.act_conv   = nn.ReLU()
         self.pool       = nn.MaxPool2d(2)
-        self.linear     = nn.Linear(128, 8)
-        self.act_linear = nn.ReLU()
+
+        # each layer is evaluated on its own set of linear layers
+        self.dense_layers = nn.ModuleList(
+                [nn.Sequential(nn.Linear(8*4*4, 8), nn.ReLU()) for _ in range(14)]
+                )
+
+        #self.linear     = nn.Linear(128, 8)
+        #self.act_linear = nn.ReLU()
 
         # mask for hexagonal convolutions
         self.register_buffer('conv2d_weight_update_mask', conv_mask.bool())
@@ -72,14 +79,14 @@ class WaferEncoder(nn.Module):
 
     def forward(self, x):
         '''
-        Carries out the full encoding + decoding to predict x'
+        Carries out the encoding step'
         '''
-        x = self.masked_conv2d(x, self.conv2d)
+        #x = self.masked_conv2d(x, self.conv2d)
+        x = self.conv2d(x.unsqueeze(0))
         x = self.act_conv(x)
         x = self.pool(x)
-        x = x.flatten(1)
-        x = self.linear(x)
-        x = self.act_linear(x)
+        x = x.view(1, 14, -1)
+        x = torch.cat([dl(x[:, i]) for i, dl in enumerate(self.dense_layers)])
         return x
 
 class WaferDecoder(nn.Module):
@@ -90,17 +97,19 @@ class WaferDecoder(nn.Module):
     def __init__(self):
         super(WaferDecoder, self).__init__()
 
-        self.linear     = nn.Linear(8, 128)
-        self.act_linear = nn.ReLU()
-        self.tconv2d    = nn.ConvTranspose2d(8, 1, 3, stride=2, padding=1, output_padding=1)
+        # each layer is evaluated on its own set of linear layers
+        self.dense_layers = nn.ModuleList(
+                [nn.Sequential(nn.Linear(8, 8*4*4), nn.ReLU()) for _ in range(14)]
+                )
+        self.tconv2d    = nn.ConvTranspose2d(8*14, 14, 3, stride=2, padding=1, output_padding=1, groups=14)
         self.act_tconv  = nn.ReLU()
 
     def forward(self, x):
-        x = self.linear(x)
-        x = self.act_linear(x)
-        x = x.view(-1, 8, 4, 4)
+        x = torch.cat([dl(x[i]) for i, dl in enumerate(self.dense_layers)])
+        x = x.view(-1, 4, 4).unsqueeze(0) # 14*8, 4, 4
         x = self.tconv2d(x)
         x = self.act_tconv(x)
+        #x = x.squeeze(0)
         return x
 
 class AutoEncoderWafer(nn.Module):
