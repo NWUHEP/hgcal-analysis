@@ -256,7 +256,7 @@ def convert_wafer_to_array(s_tc, single_layer=True):
     
     return wafer_grid
 
-def convert_wafer_neighborhood_to_array(s_tc, hex_uv):
+def convert_wafer_neighborhood_to_array(s_tc, hex_uv, single_layer=False):
     '''
     Takes a dataframe of trigger cells and converts all entries in the
     neighborhood defined by uv into a 24 by 24 grid.
@@ -271,7 +271,7 @@ def convert_wafer_neighborhood_to_array(s_tc, hex_uv):
         #wafer_grid[:, uv_offset[0]:uv_offset[0] + 8, uv_offset[1]:uv_offset[1] + 8] += wafer_mask_14x8x8
         if tuple(uv) in wafer_uv:
             wafer_data  = s_tc.loc[:,uv[0], uv[1]]
-            wafer_array = convert_wafer_to_array(wafer_data)
+            wafer_array = convert_wafer_to_array(wafer_data, single_layer=single_layer)
             wafer_grid[:, uv_offset[0]:uv_offset[0] + 8, uv_offset[1]:uv_offset[1] + 8] += wafer_array
 
 

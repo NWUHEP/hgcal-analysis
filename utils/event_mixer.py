@@ -43,6 +43,7 @@ class EventMixer():
             
             list_df_tc.append(df_cut.loc[events])
             list_df_gen.append(df_gen.loc[events])
+            # implement this!
             
         df_events = pd.concat(list_df_tc)
         df_gen = pd.concat(list_df_gen)
