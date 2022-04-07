@@ -67,6 +67,8 @@ class WaferEncoder(nn.Module):
         #self.act_linear = nn.ReLU()
 
         # mask for hexagonal convolutions
+        conv_mask_layers = torch.tensor(np.tile(conv_mask, (14*8, 1, 1)))
+        conv_mask_layers = conv_mask_layers.unsqueeze(1)
         self.register_buffer('conv2d_weight_update_mask', conv_mask_layers.bool())
         self.register_buffer('conv2d_fixed_weights', torch.zeros(8*14, 1, 3, 3))
 
@@ -77,14 +79,14 @@ class WaferEncoder(nn.Module):
         weight = torch.where(self.conv2d_weight_update_mask, weight, self.conv2d_fixed_weights)
         #bias = torch.where(self.conv2d_weight_update_mask, bias, self.conv2d_fixed_weights)
 
-        return F.conv2d(x, weight, bias, layer.stride, layer.padding)
+        return F.conv2d(x, weight, bias, layer.stride, layer.padding, groups=layer.groups)
 
     def forward(self, x):
         '''
         Carries out the encoding step'
         '''
-        #x = self.masked_conv2d(x.unsqueeze(0), self.conv2d)
-        x = self.conv2d(x.unsqueeze(0))
+        x = self.masked_conv2d(x.unsqueeze(0), self.conv2d)
+        #x = self.conv2d(x.unsqueeze(0))
         x = self.act_conv(x)
         x = self.pool(x)
         x = x.view(1, 14, -1)
@@ -165,6 +167,7 @@ class AutoEncoderWafer(nn.Module):
         )
 
         # mask for hexagonal convolutions
+        conv_mask_layers = torch.tensor(conv_mask)
         self.register_buffer('conv2d_weight_update_mask', conv_mask_layers.bool())
         self.register_buffer('conv2d_fixed_weights', torch.zeros(8, 1, 3, 3))
 

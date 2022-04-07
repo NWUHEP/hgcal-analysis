@@ -251,7 +251,7 @@ def draw_single_module(ax,
 
     return ax
 
-def draw_single_module_pixels(ax, cell_data=None):
+def draw_single_module_pixels(ax, cell_data=None, no_axes=False):
     '''
     Produces a plot of a single module on a square grid (pixel view).
 
@@ -261,13 +261,28 @@ def draw_single_module_pixels(ax, cell_data=None):
 
     mask = gt.wafer_mask_8x8.astype(float)
     mask[mask == 1.] = np.nan
-    ax.pcolor(mask, edgecolors='k', linewidths=1, hatch='X', cmap='Greys')
+    ax.pcolor(mask, edgecolors='k', linewidths=0., hatch='X', cmap='Greys')
 
     if cell_data is not None:
-        hgroc_img = gt.convert_wafer_to_array(cell_data)
-        hgroc_img[~mask.astype(bool)] = np.nan
-        ax.pcolor(hgroc_img, edgecolors='k', linewidths=4, cmap='viridis', vmin=0.5, vmax=None)
-        hgroc_img = gt.wafer_mask_hgroc.astype(float)
+        if isinstance(cell_data, pd.Series):
+            hgroc_img = gt.convert_wafer_to_array(cell_data)
+            hgroc_img[~mask.astype(bool)] = np.nan
+            ax.pcolor(hgroc_img,
+                      edgecolors='k',
+                      linewidths=3,
+                      cmap='viridis',
+                      norm=colors.LogNorm(vmin=0.01, vmax=50)
+                      )
+        elif isinstance(cell_data, np.ndarray):
+            hgroc_img = cell_data.copy()
+            #hgroc_img /= hgroc_img.max()
+            hgroc_img[~mask.astype(bool)] = np.nan
+            ax.pcolor(hgroc_img,
+                      edgecolors='k',
+                      linewidths=0.5,
+                      cmap='viridis',
+                      norm=colors.LogNorm(vmin=0.01, vmax=10)
+                      )
     else:
         cmap1 = matplotlib.colors.LinearSegmentedColormap.from_list('mycmap', ['g', 'b', 'r'])
         hgroc_img = gt.wafer_mask_hgroc.astype(float)
@@ -275,15 +290,16 @@ def draw_single_module_pixels(ax, cell_data=None):
         ax.pcolor(hgroc_img, edgecolors='face', linewidths=4, cmap=cmap1, alpha=0.6)
 
     # default style
-    ax.set_xticks(list(range(9)))
-    ax.set_yticks(list(range(9)))
-    ax.set_xlabel(r'$\mathit{j}$')
-    ax.set_ylabel(r'$\mathit{i}$')
-    ax.set_title('Pixels')
-    plt.gca().invert_yaxis()
+    ax.set_xlim(0, 8)
+    ax.set_ylim(8, 0)
+    if not no_axes:
+        ax.set_xticks(list(range(9)))
+        ax.set_yticks(list(range(9)))
+        ax.set_xlabel(r'$\mathit{j}$')
+        ax.set_ylabel(r'$\mathit{i}$')
+        ax.set_title('Pixels')
 
     return ax
-
 
 def animate_wafer_neighbor_shower(ax, df_event):
     pass
