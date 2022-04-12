@@ -160,17 +160,16 @@ def draw_hgcal_layer(ax,
     else:
         ax.set_xlim(-170, 170)
         ax.set_ylim(-170, 170)
-
     return ax
 
-
 def draw_single_module(ax,
-                       uv=(0, 0),
+                       uv_offset=(0, 0),
                        cell_data=None,
                        hex_radius=gt.hgcal_hex_radius,
                        do_fill=False,
                        draw_cbar=False,
-                       include_tc_index=False
+                       include_tc_index=False,
+                       convolution_mask=None
                        ):
     '''
     Draws a single HGCal wafer/module including HGROC boundaries.  If cell_data
@@ -179,18 +178,18 @@ def draw_single_module(ax,
     '''
 
     # calculate offset in cartesian coordinates
-    xy_offset = gt.hex_to_cartesian(uv)
+    x_offset, y_offset = gt.hex_to_cartesian(uv_offset)
 
     # draw hexegonal grid
-    poly = RegularPolygon(xy_offset,
-            numVertices=6,
-            radius=hex_radius,
-            orientation=np.radians(0),
-            facecolor='C0',
-            alpha=0.1,
-            edgecolor='k',
-            zorder=1
-            )
+    poly = RegularPolygon((x_offset, y_offset),
+                          numVertices=6,
+                          radius=hex_radius,
+                          orientation=np.radians(0),
+                          facecolor='C0',
+                          alpha=0.1,
+                          edgecolor='k',
+                          zorder=1
+                          )
     ax.add_patch(poly)
 
     # Draw HGROC boundaries
@@ -198,11 +197,12 @@ def draw_single_module(ax,
     for color, orientation in zip(['g', 'b', 'r'], [1, 2, 3]):
         if not do_fill:
             color = 'k'
-        hgroc_patch = Polygon(xy=gt.get_tc_rhombus(orientation, xy_offset),
-                fill=do_fill,
-                color=color,
-                alpha=0.6
-                )
+
+        hgroc_patch = Polygon(xy=gt.get_tc_rhombus(orientation, (x_offset, y_offset)),
+                              fill=do_fill,
+                              color=color,
+                              alpha=0.6
+                              )
         ax.add_patch(hgroc_patch)
 
     cmap = matplotlib.cm.get_cmap('viridis')
@@ -210,7 +210,7 @@ def draw_single_module(ax,
     tc_radius = gt.hgcal_hex_radius/4
     for (u, v), (x, y) in df_uv_to_xy.iterrows():
         u, v = int(u), int(v)
-        x, y = x - xy_offset[0], y - xy_offset[1]
+        x, y = x + x_offset, y + y_offset
 
         if include_tc_index:
             ax.text(x, y, f'({u}, {v})', ha='center', va='center', size=14, color='w' if do_fill else'k')
@@ -220,34 +220,44 @@ def draw_single_module(ax,
         x, y = x - 0.5*tc_radius*np.cos(hgroc_angle), y - 0.5*tc_radius*np.sin(hgroc_angle)
         tc_xy = gt.get_tc_rhombus(orientation, [x, y], hex_radius=tc_radius)
         if cell_data is not None:
-            color = cmap(cell_data.loc[u, v]/cell_data.max())
+            if (u, v) in cell_data.index:
+                color = cmap(cell_data.loc[u, v])
+            else:
+                color = 'w'
+
             tc_patch = Polygon(xy=tc_xy,
-                    fill=True,
-                    edgecolor='k',
-                    facecolor=color,
-                    linewidth=4.,
-                    alpha=1.,
-                    zorder=2,
-                    )
+                               fill=True,
+                               edgecolor='k',
+                               facecolor=color,
+                               linewidth=3.,
+                               alpha=1.,
+                               zorder=2,
+                               )
         else:
+            if convolution_mask is not None and  [u, v] in convolution_mask:
+                tc_patch = Polygon(xy=tc_xy,
+                                   fill=False,
+                                   color='k',
+                                   hatch='/',
+                                   linewidth=3.,
+                                   alpha=1.,
+                                   zorder=2
+                                   )
+                ax.add_patch(tc_patch)
+
             color = color_list[orientation - 1]
             tc_patch = Polygon(xy=tc_xy,
-                    fill=False,
-                    color=color,
-                    linewidth=3.,
-                    alpha=1.,
-                    zorder=2
-                    )
+                               fill=False,
+                               color=color if do_fill else 'k',
+                               linewidth=3.,
+                               alpha=1.,
+                               zorder=1
+                               )
         ax.add_patch(tc_patch)
 
     if draw_cbar:
-        cbar = fig.colorbar(scat, ax=ax, shrink=1.)
+        cbar = plt.colorbar(scat, ax=ax, shrink=1.)
         cbar.set_label('trigger cell energy [GeV]')
-
-    ax.set_xlim(xy_offset[0] - 9, xy_offset[0] + 9)
-    ax.set_ylim(xy_offset[1] - 10, xy_offset[1] + 10)
-    ax.set_xlabel('X [cm]')
-    ax.set_ylabel('Y [cm]')
 
     return ax
 
@@ -261,7 +271,12 @@ def draw_single_module_pixels(ax, cell_data=None, no_axes=False):
 
     mask = gt.wafer_mask_8x8.astype(float)
     mask[mask == 1.] = np.nan
-    ax.pcolor(mask, edgecolors='k', linewidths=0., hatch='X', cmap='Greys')
+    ax.pcolor(mask,
+              edgecolors='k',
+              linewidths=0.,
+              hatch=None if no_axes else 'X',
+              cmap='Greys'
+              )
 
     if cell_data is not None:
         if isinstance(cell_data, pd.Series):
@@ -271,7 +286,7 @@ def draw_single_module_pixels(ax, cell_data=None, no_axes=False):
                       edgecolors='k',
                       linewidths=3,
                       cmap='viridis',
-                      norm=colors.LogNorm(vmin=0.01, vmax=50)
+                      #norm=colors.LogNorm(vmin=0.01, vmax=50)
                       )
         elif isinstance(cell_data, np.ndarray):
             hgroc_img = cell_data.copy()
@@ -279,7 +294,7 @@ def draw_single_module_pixels(ax, cell_data=None, no_axes=False):
             hgroc_img[~mask.astype(bool)] = np.nan
             ax.pcolor(hgroc_img,
                       edgecolors='k',
-                      linewidths=0.5,
+                      linewidths=0.1,
                       cmap='viridis',
                       norm=colors.LogNorm(vmin=0.01, vmax=10)
                       )
@@ -297,10 +312,24 @@ def draw_single_module_pixels(ax, cell_data=None, no_axes=False):
         ax.set_yticks(list(range(9)))
         ax.set_xlabel(r'$\mathit{j}$')
         ax.set_ylabel(r'$\mathit{i}$')
-        ax.set_title('Pixels')
 
     return ax
 
-def animate_wafer_neighbor_shower(ax, df_event):
+def draw_hexagonal_neighborhood(ax, cell_data=None, no_axes=False):
+    '''
+    Draws hexagonal module neighborhood with individual tc.
+    '''
+    pass
+
+def draw_hexagonal_neighborhood_pixels(ax, cell_data=None, no_axes=False):
+    '''
+    Draws hexagonal module neighborhood with individual tc on a regular grid.
+    '''
+    pass
+
+def animate_wafer_neighbor_shower(ax):
+    pass
+
+def animate_hex_convolutions_module(ax):
     pass
 

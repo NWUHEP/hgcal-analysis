@@ -223,6 +223,7 @@ def map_to_first_wedge(uv, wafer_data=None, angle=np.pi/6, hex_radius=0.95*8*2.5
 
     return uv_rot, iphi
 
+
 def get_events_in_neighborhood(uv, df_data):
     '''
     Filters dataframe down to events with maximum energy in wafer uv.
@@ -230,12 +231,13 @@ def get_events_in_neighborhood(uv, df_data):
 
     hex_neighborhood = hex_neighbors(uv)
     wafer_group = df_data.groupby(['event', 'tc_waferu', 'tc_waferv'])
-    energy_max_idx = wafer_group.sum()[['tc_energy']].groupby(level=0).idxmax()['tc_energy'].to_list()
+    energy_max_idx = wafer_group.sum()[['tc_energy']] .groupby(level=0).idxmax()['tc_energy'].to_list()
     wafer_emap = pd.DataFrame(energy_max_idx, columns=['event', 'waferu', 'waferv']).set_index(['waferu', 'waferv'])
     wafer_mask = wafer_emap.index.isin(hex_neighborhood)
     events = wafer_emap[wafer_mask]['event'].values
 
     return events
+
 
 def convert_wafer_to_array(s_tc, single_layer=True):
     '''
@@ -247,7 +249,6 @@ def convert_wafer_to_array(s_tc, single_layer=True):
         wafer_grid = np.zeros((8, 8))
         for (cellu, cellv), e in s_tc.items():
             wafer_grid[cellu, cellv] = e
-
     else:
         wafer_grid = np.zeros((14, 8, 8))
         for (layer, cellu, cellv), e in s_tc.items():
@@ -256,24 +257,40 @@ def convert_wafer_to_array(s_tc, single_layer=True):
     
     return wafer_grid
 
+
 def convert_wafer_neighborhood_to_array(s_tc, hex_uv, single_layer=False):
     '''
     Takes a dataframe of trigger cells and converts all entries in the
-    neighborhood defined by uv into a 24 by 24 grid.
+    neighborhood centered on hex_uv into a 14x24x24 grid.  By default s_tc
+    should be indexed as (layer, wafer_u, wafer_v, cell_u, cell_v), but
+    optionally a single layer can be processed.  In that case the layer index
+    should not be present and the returned grid will be 24x24.
+
+    parameters:
+    :s_tc: [pandas.Series]
     '''
 
-    wafer_grid = np.zeros((14, 24, 24))
     hex_neighborhood = hex_neighbors(hex_uv)
-    wafer_uv = [t[1:3] for t in s_tc.index]
+    if single_layer:
+        wafer_grid = np.zeros((24, 24))
+        wafer_uv = [t[:2] for t in s_tc.index]
+    else:
+        wafer_grid = np.zeros((14, 24, 24))
+        wafer_uv = [t[1:3] for t in s_tc.index]
+
     for uv in hex_neighborhood:
         relative_uv = uv - np.array(hex_uv)
-        uv_offset   = wafer_uv_offsets[tuple(relative_uv)]
-        #wafer_grid[:, uv_offset[0]:uv_offset[0] + 8, uv_offset[1]:uv_offset[1] + 8] += wafer_mask_14x8x8
-        if tuple(uv) in wafer_uv:
-            wafer_data  = s_tc.loc[:,uv[0], uv[1]]
-            wafer_array = convert_wafer_to_array(wafer_data, single_layer=single_layer)
-            wafer_grid[:, uv_offset[0]:uv_offset[0] + 8, uv_offset[1]:uv_offset[1] + 8] += wafer_array
+        uv_offset = wafer_uv_offsets[tuple(relative_uv)]
 
+        if single_layer:
+            if tuple(uv) in wafer_uv:
+                wafer_data = s_tc.loc[uv[0], uv[1]]
+                wafer_array = convert_wafer_to_array(wafer_data, single_layer=single_layer)
+                wafer_grid[uv_offset[0]:uv_offset[0] + 8, uv_offset[1]:uv_offset[1] + 8] += wafer_array
+        else:
+            if tuple(uv) in wafer_uv:
+                wafer_data = s_tc.loc[:, uv[0], uv[1]]
+                wafer_array = convert_wafer_to_array(wafer_data, single_layer=False)
+                wafer_grid[:, uv_offset[0]:uv_offset[0] + 8, uv_offset[1]:uv_offset[1] + 8] += wafer_array
 
     return wafer_grid
-    
