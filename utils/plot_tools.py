@@ -307,7 +307,9 @@ def draw_single_module_pixels(ax, cell_data=None, no_axes=False):
     # default style
     ax.set_xlim(0, 8)
     ax.set_ylim(8, 0)
-    if not no_axes:
+    if no_axes:
+        ax.axis('off')
+    else:
         ax.set_xticks(list(range(9)))
         ax.set_yticks(list(range(9)))
         ax.set_xlabel(r'$\mathit{j}$')

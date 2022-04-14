@@ -26,10 +26,6 @@ class AutoEncoderModular(nn.Module):
         self.encoder = nn.ModuleDict({f'{i}': WaferEncoder() for i in keys})
         self.decoder = nn.ModuleDict({f'{i}': WaferDecoder() for i in keys})
 
-        #self.decoder_dict = nn.ModuleDict({f'{l} {u}': WaferDecoder() for l, u in indices})
-        #self.encoder = WaferEncoder()
-        #self.decoder = WaferDecoder()
-
     def encode(self, x, key):
         return self.encoder[key](x)
 
@@ -43,8 +39,7 @@ class AutoEncoderModular(nn.Module):
 
 class WaferEncoder(nn.Module):
     '''
-    A module that encodes data for a single HGCal wafer.  Intended for use
-    as segmented inputs for a larger autoencoder
+    A module that encodes data from a single HGCal wafer.  
     '''
     def __init__(self, batch_size=1):
         super(WaferEncoder, self).__init__()

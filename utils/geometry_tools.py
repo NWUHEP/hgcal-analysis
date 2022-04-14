@@ -16,6 +16,7 @@ conv_mask = np.array([
     [0, 1, 1]
     ])
 
+# useful for coloring and orienting trigger cells
 wafer_mask_hgroc = np.array([
     [2, 2, 2, 2, 0, 0, 0, 0],
     [3, 2, 2, 2, 2, 0, 0, 0],
@@ -27,6 +28,8 @@ wafer_mask_hgroc = np.array([
     [0, 0, 0, 3, 1, 1, 1, 1],
     ])
 
+# used for masking out non-physical entries when mapping a single hex module to
+# a grid
 wafer_mask_8x8 = np.array([
     [1, 1, 1, 1, 0, 0, 0, 0],
     [1, 1, 1, 1, 1, 0, 0, 0],
@@ -39,6 +42,7 @@ wafer_mask_8x8 = np.array([
     ])
 wafer_mask_14x8x8 = np.tile(wafer_mask_8x8, (14, 1)).reshape(14, 8, 8)
 
+# for mapping into a hex neighborhood grid
 wafer_uv_offsets = {
         (0, 0)   : (8, 8),
         (1, 0)   : (4, 0),
@@ -48,6 +52,8 @@ wafer_uv_offsets = {
         (-1, 0)  : (12, 16),
         (0, -1)  : (0, 4),
        }
+
+# mask for full neighborhood in first 14 EE layers
 wafer_mask_14x24x24 = np.zeros((14, 24, 24))
 for uv, offset in wafer_uv_offsets.items():
     wafer_mask_14x24x24[:, offset[0]:offset[0] + 8, offset[1]:offset[1] + 8] += wafer_mask_14x8x8
@@ -78,6 +84,10 @@ def get_tc_rhombus(orientation, xy_offset=[0., 0.], angle=np.pi/6, hex_radius=hg
 
 # helper functions
 def hex_neighbors(uv):
+    '''
+    Produces coordinates of neighboring wafers or trigger cells.
+    '''
+
     u, v = uv
     neighbors = [[u, v + 1], [u + 1, v + 1], 
                  [u - 1, v], [u, v], [u + 1, v], 
