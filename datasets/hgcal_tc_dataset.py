@@ -43,6 +43,8 @@ class HGCalTCModuleDictDataset(Dataset):
             data = pickle.load(f)
             for (event, zside), event_data in data.items():
                 for uv, tc_stack in event_data.items():
+                    if np.sum(tc_stack) < 10:
+                        continue
                     #layer_index = list(range(len(gt.layer_bins)))
                     uv, _ = gt.map_to_first_wedge(uv)
                     u_bin = np.digitize(uv[0], bins=gt.wafer_bins)
