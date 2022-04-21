@@ -6,6 +6,54 @@ from torch.utils.data import Dataset
 
 import utils.geometry_tools as gt
 
+class HGCalNeighborhoodDataset(Dataset):
+    '''
+    Data format for individual wafers using (cellu, cellv) formatting.  This is
+    the first prototype of the econ dataset and will not include layer of wafer
+    location information.
+    '''
+    def __init__(self, input_files, do_stacks=False, targets=None, transform=None):
+        self.input_files = input_files
+
+        # add something meaningful for these
+        self.targets     = targets
+        self.transform   = transform
+
+        # unpack the data into 8x8 tensors
+        self.wafer_data = self.unpack_wafer_data(do_stacks)
+
+    def __getitem__(self, index):
+        #wafer, uv = self.wafer_data[index]
+        wafer_data = self.wafer_data[index]
+        #y = self.targets[index]
+
+        if self.transform:
+            wafer = self.transform(wafer)
+
+        #return wafer, uv
+        return wafer_data
+
+    def __len__(self):
+        return len(self.wafer_data)
+
+    def unpack_neighborhood_data(self, do_stacks):
+        neighborhoods = []
+        for filename in self.input_files:
+            f = open(filename, 'rb')
+            data = pickle.load(f)
+            for (event, zside), event_data in data.items():
+                for uv, tc_stack in event_data.items():
+                    if np.sum(tc_stack) < 10:
+                        continue
+
+                    #layer_index = list(range(len(gt.layer_bins)))
+                    uv, _ = gt.map_to_first_wedge(uv)
+                    u_bin = np.digitize(uv[0], bins=gt.wafer_bins)
+                    wafers.append((torch.tensor(tc_stack).float(), u_bin))
+
+        # temporary: stack all wafers and remove empty wafers (those should be trained on though)
+        return wafers
+
 class HGCalTCModuleDictDataset(Dataset):
     '''
     Data format for individual wafers using (cellu, cellv) formatting.  This is

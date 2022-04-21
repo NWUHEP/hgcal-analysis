@@ -18,8 +18,8 @@ default_keys = range(len(wafer_bins) + 1)
 
 class AutoEncoderModularConnected(nn.Module):
     '''
-    Revision of AutoEncoderModular that uses different decoder architectures that 
-    connect wafers across layers.  
+    Revision of AutoEncoderModular that uses different decoder architectures
+    that connect wafers across layers.  
     '''
     def __init__(self, keys=default_keys, encode_size=8):
         super(AutoEncoderModularConnected, self).__init__()
